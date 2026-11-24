@@ -83,7 +83,7 @@ The signature input may be up to 64 KiB. This suits release manifests such as `S
 | `AppSettings__AuthProvider` | `Local` by default. Select `OIDC` and configure its authority and client settings for corporate sign-in. |
 | `ConnectionStrings__DbType` | `Sqlite` by default. The application also supports `MySql`. |
 | `Storage__Path` | Persistent data path. The Docker image uses `/data`. |
-| `Signing__DataProtectionKeyPath` | Override the Data Protection key ring path. The default is `DataProtection` under the storage path, outside publicly served files. |
+| `Signing__DataProtectionKeyPath` | Override the Data Protection key ring path. The default follows Template and is `/data/.aspnet/DataProtection-Keys` in Docker. |
 
 The passphrase derives an AES-256-GCM encryption key using Argon2id with a random salt. ASP.NET Core Data Protection wraps each ciphertext with a key-specific purpose. Keep the database and Data Protection key ring persistent and private. Back up both and store each signing passphrase in the company password manager. Decrypted OpenPGP material exists during signing in process memory and a temporary Linux shared-memory directory.
 

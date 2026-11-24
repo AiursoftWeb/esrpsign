@@ -60,18 +60,18 @@ sealed class OpenPgp : IAsyncDisposable
     private static async Task<byte[]> Execute(string executable, byte[]? input, string[] arguments)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        using var process = new Process
+        var startInfo = new ProcessStartInfo(executable)
         {
-            StartInfo = new ProcessStartInfo(executable)
-            {
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            }
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
         };
         foreach (var argument in arguments)
-            process.StartInfo.ArgumentList.Add(argument);
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+        using var process = new Process { StartInfo = startInfo };
         process.Start();
 
         using var output = new MemoryStream();

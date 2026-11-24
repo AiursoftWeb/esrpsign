@@ -26,7 +26,7 @@ public class UsersControllerTests : TestBase
             { "UserName", userName },
             { "DisplayName", "Test User" },
             { "Email", email },
-            { "Password", "TestPassword123" }
+            { "Password", "TestPassword123!" }
         });
         AssertRedirect(createResponse, "/Users/Details/", exact: false);
         var userId = createResponse.Headers.Location?.OriginalString.Split("/").Last();

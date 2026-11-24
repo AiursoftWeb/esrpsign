@@ -3,7 +3,8 @@ using Aiursoft.AiurProtocol.Models;
 using Aiursoft.EsrpSign.Authorization;
 using Aiursoft.EsrpSign.Services.Signing;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Aiursoft.CSTools.Tools;
 using Aiursoft.Canon.TaskQueue;
 using Aiursoft.Canon.BackgroundJobs;
@@ -65,13 +66,15 @@ public class Startup : IWebStartup
             }
         });
 
-        // Keep the key ring alongside app state, outside the served Workspace and Vault folders.
-        var storage = configuration["Storage:Path"] ?? "/tmp/data";
+        // Keep the Template key ring unless a separate private, persistent directory is configured.
         var keyRing = configuration["Signing:DataProtectionKeyPath"];
-        services.AddDataProtection().SetApplicationName("Aiursoft.EsrpSign")
-            .PersistKeysToFileSystem(new DirectoryInfo(string.IsNullOrWhiteSpace(keyRing)
-                ? Path.Combine(storage, "DataProtection")
-                : keyRing));
+        if (!string.IsNullOrWhiteSpace(keyRing))
+        {
+            services.AddOptions<KeyManagementOptions>().PostConfigure<ILoggerFactory>((options, loggerFactory) =>
+            {
+                options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(keyRing), loggerFactory);
+            });
+        }
         services.AddSingleton<PrivateKeys>();
         services.AddScoped<CompanySigningService>();
 
