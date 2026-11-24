@@ -138,10 +138,9 @@ public sealed class CompanySigningTests : TestBase
 
         await LoginAsAdmin();
         var token = await IssueApiKey();
-        using var excessive = new HttpRequestMessage(HttpMethod.Post, path)
-        {
-            Content = new ByteArrayContent([])
-        };
+        using var excessive = new HttpRequestMessage(HttpMethod.Post, path);
+        using var empty = new ByteArrayContent([]);
+        excessive.Content = empty;
         excessive.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         excessive.Headers.ExpectContinue = true;
         excessive.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/mixed; boundary=parts");
