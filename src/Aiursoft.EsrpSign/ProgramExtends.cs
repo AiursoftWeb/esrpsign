@@ -1,4 +1,3 @@
-using Aiursoft.CSTools.Tools;
 using Aiursoft.EsrpSign.Authorization;
 using Aiursoft.EsrpSign.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -71,36 +70,9 @@ public static class ProgramExtends
             return host;
         }
 
-        var configuration = services.GetRequiredService<IConfiguration>();
-        var environment = services.GetRequiredService<IHostEnvironment>();
-        var initialPassword = configuration["AppSettings:Local:InitialAdminPassword"];
-        if (string.IsNullOrWhiteSpace(initialPassword) && (environment.IsDevelopment() || EntryExtends.IsInUnitTests()))
-        {
-            initialPassword = "Admin@123456!";
-        }
-        if (initialPassword is null || initialPassword.Length < 12 ||
-            (initialPassword == "Admin@123456!" && !environment.IsDevelopment() && !EntryExtends.IsInUnitTests()))
-        {
-            throw new InvalidOperationException("Set AppSettings__Local__InitialAdminPassword to a unique password of at least 12 characters before starting with an empty database.");
-        }
-
         logger.LogInformation("Seeding the database with initial data...");
         var userManager = services.GetRequiredService<UserManager<User>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-
-        var admin = new User
-        {
-            UserName = "admin",
-            DisplayName = "Super Administrator",
-            Email = "admin@default.com",
-        };
-        foreach (var validator in userManager.PasswordValidators)
-        {
-            if (!(await validator.ValidateAsync(userManager, admin, initialPassword)).Succeeded)
-            {
-                throw new InvalidOperationException("The configured initial administrator password does not meet the account password policy.");
-            }
-        }
 
         var role = await roleManager.FindByNameAsync("Administrators");
         if (role == null)
@@ -126,11 +98,14 @@ public static class ProgramExtends
 
         if (!await db.Users.AnyAsync(u => u.UserName == "admin"))
         {
-            if (!(await userManager.CreateAsync(admin, initialPassword)).Succeeded ||
-                !(await userManager.AddToRoleAsync(admin, "Administrators")).Succeeded)
+            var user = new User
             {
-                throw new InvalidOperationException("Could not initialize the administrator account.");
-            }
+                UserName = "admin",
+                DisplayName = "Super Administrator",
+                Email = "admin@default.com",
+            };
+            _ = await userManager.CreateAsync(user, "Admin@123456!");
+            await userManager.AddToRoleAsync(user, "Administrators");
         }
 
         return host;

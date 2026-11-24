@@ -9,7 +9,7 @@
 
 Aiursoft ESRP Sign is a self-hosted OpenPGP signing service for company releases built on ASP.NET Core (.NET 10).
 
-In Development, the default user name is `admin@default.com` and the default password is `Admin@123456!`. Set a unique initial administrator password for a new database in production.
+For local accounts, the default user name is `admin@default.com` and the default password is `Admin@123456!`. Change the password when you first sign in.
 
 ## Overview
 
@@ -58,13 +58,10 @@ await File.WriteAllBytesAsync("SHA256SUMS.sig", result.Signature);
 
 Run the installer with the desired port (omit it to choose an available port).
 
-The installer uses the published image. From a checkout of this repository, set the initial administrator password in your shell before running the installer against a new database.
+Run the installer from a checkout of this repository. It uses the published image.
 
 ```bash
-read -r -s -p 'Initial administrator password: ' AppSettings__Local__InitialAdminPassword
-printf '\n'
-export AppSettings__Local__InitialAdminPassword
-sudo --preserve-env=AppSettings__Local__InitialAdminPassword bash install.sh 8080
+sudo bash install.sh 8080
 ```
 
 Installation starts after three seconds. Press Ctrl+C to cancel. Then open `http://localhost:8080`.
@@ -75,28 +72,27 @@ Requirements about how to run
 
 1. Install [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [Node.js](https://nodejs.org/). On Linux, install the `gnupg` and `libargon2-1` packages for signing.
 2. The .NET build automatically runs `npm ci` and `npm run build` to prepare the frontend assets. Node.js and npm must be available when building from source.
-3. Execute `ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Aiursoft.EsrpSign/Aiursoft.EsrpSign.csproj -- --urls http://localhost:5000` to run the app.
+3. Execute `dotnet run --project src/Aiursoft.EsrpSign/Aiursoft.EsrpSign.csproj -- --urls http://localhost:5000` to run the app.
 4. Use your browser to view [http://localhost:5000](http://localhost:5000).
 
 ## Run in Microsoft Visual Studio
 
 1. Install the requirements described above. The build prepares the frontend assets.
 2. Open `Aiursoft.EsrpSign.sln` and select `Aiursoft.EsrpSign` as the startup project.
-3. Set `ASPNETCORE_ENVIRONMENT=Development` in the Linux or WSL launch environment and press `F5`.
+3. Press `F5` to run the app in the Linux or WSL launch environment.
 
 ## Run in Docker
 
 First, install Docker [here](https://docs.docker.com/get-docker/).
 
-Set the initial administrator password in your shell as described under [Install with Docker](#install-with-docker). Run the following commands from the repository root in a Linux shell.
+Run the following commands from the repository root in a Linux shell.
 
 ```bash
 image=aiursoft/esrpsign
 appName=esrpsign
 sudo docker build -t "$image" .
-sudo --preserve-env=AppSettings__Local__InitialAdminPassword docker run -d \
+sudo docker run -d \
   --name "$appName" --restart unless-stopped -p 127.0.0.1:5000:5000 \
-  --env AppSettings__Local__InitialAdminPassword \
   --mount "type=volume,source=$appName-data,target=/data" "$image"
 ```
 
@@ -242,9 +238,7 @@ The Docker image copies this file to `/data/appsettings.json` on its first start
       // True: show self-registration and allow new local accounts. False: existing users can sign in, but cannot register.
       "AllowRegister": true,
       // True: require only six characters. False: require eight characters with upper, lower, digit, and symbol.
-      "AllowWeakPassword": false,
-      // Set AppSettings__Local__InitialAdminPassword for a new database outside Development.
-      "InitialAdminPassword": ""
+      "AllowWeakPassword": false
     }
   },
   "GlobalSettings": {
@@ -294,7 +288,7 @@ The Docker image copies this file to `/data/appsettings.json` on its first start
 - `Logging:LogLevel` controls application and framework verbosity. Configure the optional ClickHouse exporter only when its server and credentials are ready.
 - `AllowedHosts` is the ASP.NET Core Host-header allowlist, not a CORS setting.
 
-`AppSettings:Local:InitialAdminPassword` sets the bootstrap password for a new database outside Development. Use a unique password of at least 12 characters that meets the account password policy. ESRP Sign reads current permissions directly from the database.
+ESRP Sign reads current permissions directly from the database.
 
 `Signing:DataProtectionKeyPath` overrides the Data Protection key ring path. The Docker default is `/data/.aspnet/DataProtection-Keys`.
 
