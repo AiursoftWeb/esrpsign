@@ -52,6 +52,9 @@ public static class AuthenticationExtensions
             options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
         });
 
+        authBuilder.AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+            ApiKeyAuthenticationHandler.SchemeName, _ => { });
+
         services.ConfigureApplicationCookie(options =>
         {
             options.LoginPath = "/Account/Login";

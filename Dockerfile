@@ -44,6 +44,8 @@ RUN cp -r ${CSPROJ_PATH}/wwwroot/* /app/wwwroot
 # ============================
 # Prepare Runtime Environment
 FROM hub.aiursoft.com/aiursoft/internalimages/dotnetonlyruntime
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg libargon2-1 \
+    && rm -rf /var/lib/apt/lists/*
 ARG PROJ_NAME
 WORKDIR /app
 COPY --from=build-env /app .

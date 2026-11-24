@@ -10,6 +10,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Aiursoft.AiurProtocol.Server" Version="10.0.42" />
     <PackageReference Include="Aiursoft.ClickhouseLoggerProvider" Version="10.0.30" />
     <PackageReference Include="Aiursoft.DbTools.Switchable" Version="10.0.32" />
     <PackageReference Include="Aiursoft.Scanner" Version="10.0.16" />
@@ -30,6 +31,7 @@
     <ProjectReference Include="..\Aiursoft.EsrpSign.InMemory\Aiursoft.EsrpSign.InMemory.csproj" />
     <ProjectReference Include="..\Aiursoft.EsrpSign.MySql\Aiursoft.EsrpSign.MySql.csproj" />
     <ProjectReference Include="..\Aiursoft.EsrpSign.Sqlite\Aiursoft.EsrpSign.Sqlite.csproj" />
+    <ProjectReference Include="..\Aiursoft.EsrpSign.SDK\Aiursoft.EsrpSign.SDK.csproj" />
   </ItemGroup>
   <Target Name="PrepareFrontendResources" BeforeTargets="AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
     <!-- Docker supplies the slimmed assets from its Node build stage. -->

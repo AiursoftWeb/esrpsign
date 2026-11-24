@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Repository configuration.
-app_name="esrpSign"
-extra_docker_args=()
+app_name="esrpsign"
+extra_docker_args=(--env AppSettings__Local__InitialAdminPassword)
 
 set -euo pipefail
 
@@ -52,6 +52,8 @@ if (( EUID != 0 )); then
     echo "Run this installer with sudo." >&2
     exit 1
 fi
+
+: "${AppSettings__Local__InitialAdminPassword:?Set the initial administrator password before installing.}"
 
 image_name="${app_name,,}"
 

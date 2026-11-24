@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Enter between 1 and 65,536 bytes of text." xml:space="preserve">
+    <value>请输入 1 至 65,536 字节的文本。</value>
+  </data>
+  <data name="The key passphrase is incorrect." xml:space="preserve">
+    <value>密钥口令不正确。</value>
+  </data>
+  <data name="Use at least 12 characters and no more than 256 UTF-8 bytes." xml:space="preserve">
+    <value>至少 12 个字符，且 UTF-8 编码后不超过 256 字节。</value>
+  </data>
+</root>

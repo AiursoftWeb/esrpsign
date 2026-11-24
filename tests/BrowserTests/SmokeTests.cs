@@ -15,7 +15,7 @@ public class SmokeTests : BrowserTestBase
         var css = Page.WaitForResponseAsync(response => new Uri(response.Url).AbsolutePath == assetRoot + "css/app.css");
         var js = Page.WaitForResponseAsync(response => new Uri(response.Url).AbsolutePath == assetRoot + "js/app.js");
         await NavigateAsync("/Dashboard/Index");
-        await Expect(Page.Locator("h1.display-4")).ToBeVisibleAsync();
+        await Expect(Page.GetByRole(Microsoft.Playwright.AriaRole.Heading, new() { Name = "Aiursoft ESRP Sign", Level = 1 })).ToBeVisibleAsync();
         foreach (var response in await Task.WhenAll(css, js))
         {
             Assert.IsTrue(response.Ok, $"{response.Url}: HTTP {response.Status}");

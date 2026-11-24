@@ -1,3 +1,9 @@
+using Microsoft.AspNetCore.RateLimiting;
+using Aiursoft.AiurProtocol.Models;
+using Aiursoft.EsrpSign.Authorization;
+using Aiursoft.EsrpSign.Services.Signing;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Aiursoft.CSTools.Tools;
 using Aiursoft.Canon.TaskQueue;
 using Aiursoft.Canon.BackgroundJobs;
@@ -30,14 +36,15 @@ public class Startup : IWebStartup
         services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
 
         // Relational database
-        var (connectionString, dbType, allowCache) = configuration.GetDbSettings();
+        var (connectionString, dbType, _) = configuration.GetDbSettings();
+        // Permission and token revocations must be visible across instances on the next request.
         services.AddSwitchableRelationalDatabase(
             dbType: EntryExtends.IsInUnitTests() ? "InMemory" : dbType,
             connectionString: connectionString,
             supportedDbs:
             [
-                new MySqlSupportedDb(allowCache: allowCache, splitQuery: false),
-                new SqliteSupportedDb(allowCache: allowCache, splitQuery: true),
+                new MySqlSupportedDb(allowCache: false, splitQuery: false),
+                new SqliteSupportedDb(allowCache: false, splitQuery: true),
                 new InMemorySupportedDb()
             ]);
 
@@ -48,6 +55,46 @@ public class Startup : IWebStartup
 
         // Authentication and Authorization
         services.AddTemplateAuth(configuration);
+        services.AddScoped<IAuthorizationHandler, CurrentSigningPermissionHandler>();
+        services.AddAuthorization(options =>
+        {
+            foreach (var permission in new[] { AppPermissionNames.CanCreateCompanySigningKeys, AppPermissionNames.CanSignWithCompanyKeys })
+            {
+                options.AddPolicy(permission, policy => policy.RequireAuthenticatedUser()
+                    .AddRequirements(new CurrentSigningPermission(permission)));
+            }
+        });
+
+        // Keep the key ring alongside app state, outside the served Workspace and Vault folders.
+        var storage = configuration["Storage:Path"] ?? "/tmp/data";
+        var keyRing = configuration["Signing:DataProtectionKeyPath"];
+        services.AddDataProtection().SetApplicationName("Aiursoft.EsrpSign")
+            .PersistKeysToFileSystem(new DirectoryInfo(string.IsNullOrWhiteSpace(keyRing)
+                ? Path.Combine(storage, "DataProtection")
+                : keyRing));
+        services.AddSingleton<PrivateKeys>();
+        services.AddScoped<CompanySigningService>();
+
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddConcurrencyLimiter(CompanySigningService.CryptoLimiter, limiter =>
+            {
+                limiter.PermitLimit = 2;
+                limiter.QueueLimit = 0;
+            });
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                if (context.HttpContext.Request.Path.StartsWithSegments("/api"))
+                {
+                    await context.HttpContext.Response.WriteAsJsonAsync(new AiurResponse
+                    {
+                        Code = Code.TooManyRequests,
+                        Message = "The signing service is busy. Try again shortly."
+                    }, cancellationToken);
+                }
+            };
+        });
 
         // Services
         services.AddMemoryCache();
@@ -90,6 +137,7 @@ public class Startup : IWebStartup
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
         app.MapDefaultControllerRoute();
     }
 }

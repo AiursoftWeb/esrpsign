@@ -9,6 +9,16 @@ namespace Aiursoft.EsrpSign.Entities;
 
 public abstract class TemplateDbContext(DbContextOptions options) : IdentityDbContext<User>(options), ICanMigrate
 {
+    public DbSet<CompanySigningKey> CompanySigningKeys => Set<CompanySigningKey>();
+    public DbSet<PersonalApiKey> PersonalApiKeys => Set<PersonalApiKey>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+        builder.Entity<CompanySigningKey>().HasIndex(key => key.Fingerprint).IsUnique();
+        builder.Entity<PersonalApiKey>().HasIndex(key => key.KeyHash).IsUnique();
+    }
+
     public DbSet<GlobalSetting> GlobalSettings => Set<GlobalSetting>();
 
     public virtual  Task MigrateAsync(CancellationToken cancellationToken) =>

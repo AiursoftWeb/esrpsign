@@ -1,0 +1,66 @@
+@using Aiursoft.EsrpSign.Authorization
+@using Aiursoft.WebTools
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService Authorization
+@model Aiursoft.EsrpSign.Models.SigningKeysViewModels.IndexViewModel
+@{
+    var canCreate = User.Identity?.IsAuthenticated == true &&
+        (await Authorization.AuthorizeAsync(User, AppPermissionNames.CanCreateCompanySigningKeys)).Succeeded;
+    var canSign = User.Identity?.IsAuthenticated == true &&
+        (await Authorization.AuthorizeAsync(User, AppPermissionNames.CanSignWithCompanyKeys)).Succeeded;
+}
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+    <div>
+        <h1 class="h3">@Localizer["Company Signing Keys"]</h1>
+        <p class="text-muted mb-0">@Localizer["Download a public key to verify an OpenPGP signature."]</p>
+    </div>
+    @if (canCreate)
+    {
+        <a asp-action="Create" class="btn btn-primary">
+            <i data-lucide="plus"></i> @Localizer["Create Signing Key"]
+        </a>
+    }
+</div>
+<div class="card">
+    @if (Model.Keys.Count == 0)
+    {
+        <div class="card-body text-muted">@Localizer["No company signing keys yet."]</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">@Localizer["Name"]</th>
+                        <th scope="col">@Localizer["Fingerprint"]</th>
+                        <th scope="col">@Localizer["Created"]</th>
+                        <th scope="col" class="text-end">@Localizer["Actions"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var key in Model.Keys)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@key.Name</td>
+                            <td><code class="text-break">@key.Fingerprint</code></td>
+                            <td><label data-utc-time="@key.CreatedAt.ToHtmlDateTime()" class="mb-0"></label></td>
+                            <td class="text-end">
+                                <a asp-action="PublicKey" asp-route-id="@key.Id" class="btn btn-sm btn-outline-primary">
+                                    @Localizer["Download Public Key"]
+                                </a>
+                                @if (canSign)
+                                {
+                                    <a asp-action="Sign" asp-route-id="@key.Id" class="btn btn-sm btn-primary">
+                                        @Localizer["Sign Text"]
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

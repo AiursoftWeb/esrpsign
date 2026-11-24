@@ -1,6 +1,6 @@
 <Project Sdk="Aiursoft.Apkg.Sdk">
   <PropertyGroup>
-    <PackageName>aiursoft-esrpSign</PackageName>
+    <PackageName>aiursoft-esrpsign</PackageName>
     <PackageVersion>1.0.5</PackageVersion>
     <PackageAuthors>Anduin Xue &lt;anduin@aiursoft.com&gt;</PackageAuthors>
     <PackageDescription>Aiursoft EsrpSign Web Application</PackageDescription>
@@ -18,18 +18,20 @@
     <PrebuildCommand Run="dotnet publish Aiursoft.EsrpSign.csproj --configuration Release --no-self-contained -p:UseAppHost=false --runtime linux-x64 --output bin/publish/" Condition="'$(Arch)' == 'amd64'" />
     <PrebuildCommand Run="dotnet publish Aiursoft.EsrpSign.csproj --configuration Release --no-self-contained -p:UseAppHost=false --runtime linux-arm64 --output bin/publish/" Condition="'$(Arch)' == 'arm64'" />
     <PrebuildCommand Run="cp -r wwwroot/* bin/publish/wwwroot/" />
-    <PrebuildCommand Run="sed -i 's|DataSource=app.db|DataSource=/var/lib/aiursoft-esrpSign/app.db|g' bin/publish/appsettings.json" />
-    <PrebuildCommand Run="sed -i 's|/tmp/data|/var/lib/aiursoft-esrpSign/storage|g' bin/publish/appsettings.json" />
+    <PrebuildCommand Run="sed -i 's|DataSource=app.db|DataSource=/var/lib/aiursoft-esrpsign/app.db|g' bin/publish/appsettings.json" />
+    <PrebuildCommand Run="sed -i 's|/tmp/data|/var/lib/aiursoft-esrpsign/storage|g' bin/publish/appsettings.json" />
   </ItemGroup>
 
   <ItemGroup>
     <Dependency Include="dotnet-runtime-10.0" />
     <Dependency Include="aspnetcore-runtime-10.0" />
+    <Dependency Include="gnupg" />
+    <Dependency Include="libargon2-1" />
   </ItemGroup>
 
   <ItemGroup>
-    <IncludeFolder Include="bin/publish/" Target="/usr/share/aiursoft-esrpSign" />
-    <ConfFile Include="bin/publish/appsettings.json" Target="/etc/aiursoft-esrpSign/appsettings.json" />
+    <IncludeFolder Include="bin/publish/" Target="/usr/share/aiursoft-esrpsign" />
+    <ConfFile Include="bin/publish/appsettings.json" Target="/etc/aiursoft-esrpsign/appsettings.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +39,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <SystemdUnit Include="aiursoft-esrpSign.service" AutoEnable="true" />
+    <SystemdUnit Include="aiursoft-esrpsign.service" AutoEnable="false" />
   </ItemGroup>
 </Project>

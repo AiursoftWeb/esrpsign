@@ -1,328 +1,98 @@
-# Aiursoft EsrpSign - A sample project
+# Aiursoft ESRP Sign
 
-<a name="esrpSign---a-sample-project"></a>
-
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/aiursoftweb/esrpSign/blob/master/LICENSE)
-[![Pipeline stat](https://badge-proxy.aiursoft.com/aiursoft/esrpSign/badges/master/pipeline.svg)](https://gitlab.aiursoft.com/aiursoft/esrpSign/-/pipelines)
-[![Test Coverage](https://badge-proxy.aiursoft.com/aiursoft/esrpSign/badges/master/coverage.svg)](https://gitlab.aiursoft.com/aiursoft/esrpSign/-/pipelines)
-[![S360 compliance](https://s360.aiursoft.com/badge.svg?project=aiursoft%2FesrpSign)](https://s360.aiursoft.com/SupplyChain?tab=projects&project=aiursoft%2FesrpSign&scope=baseline&ecosystem=all)
-[![Man hours](https://manhours.aiursoft.com/r/github.com/aiursoftweb/esrpSign.svg)](https://manhours.aiursoft.com/r/github.com/aiursoftweb/esrpSign.html)
-[![Website](https://img.shields.io/website?url=https%3A%2F%2FesrpSign.aiursoft.com)](https://esrpSign.aiursoft.com)
-[![Docker](https://img.shields.io/docker/pulls/aiursoft/esrpSign.svg)](https://hub.docker.com/r/aiursoft/esrpSign)
-
-EsrpSign is a sample project.
-
-![screenshot](./screenshot.png)
-
-Default user name is `admin@default.com` and default password is `Admin@123456!`.
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Pipeline stat](https://badge-proxy.aiursoft.com/aiursoft/esrpsign/badges/master/pipeline.svg)](https://gitlab.aiursoft.com/aiursoft/esrpsign/-/pipelines)
+[![Test Coverage](https://badge-proxy.aiursoft.com/aiursoft/esrpsign/badges/master/coverage.svg)](https://gitlab.aiursoft.com/aiursoft/esrpsign/-/pipelines)
+[![S360 compliance](https://s360.aiursoft.com/badge.svg?project=aiursoft%2Fesrpsign)](https://s360.aiursoft.com/SupplyChain?tab=projects&project=aiursoft%2Fesrpsign&scope=baseline&ecosystem=all)
 
 ## Overview
 
-### What is EsrpSign?
+### What is ESRP Sign?
 
-EsrpSign is a sample project.
+ESRP Sign creates and protects company OpenPGP signing keys. Employees with permission can create keys or sign with an existing key's passphrase. Anyone can download a public key to verify a release. The web application uses the Aiursoft Template for its UI, authentication, permissions, and database providers.
 
-## Try
+## SDK
 
-Try a running EsrpSign [here](https://esrpSign.aiursoft.com).
+The `Aiursoft.EsrpSign.SDK` project provides an AiurProtocol client for .NET. The client does not retry key creation or signing requests automatically.
 
-## Install with Docker
+```csharp
+using Aiursoft.EsrpSign.SDK;
+using Aiursoft.EsrpSign.SDK.Models;
 
-Run the installer with the desired port (omit it to choose an available port):
+services.AddEsrpSignSdk("https://sign.example.com");
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/aiursoftweb/esrpSign/master/install.sh | sudo bash -s -- 8080
+// Resolve EsrpSignApiClient from the application's service scope.
+var result = await client.SignAsync(apiKey, signingKeyId, new SignRequest
+{
+    Passphrase = passphrase,
+    Data = await File.ReadAllBytesAsync("SHA256SUMS")
+});
+await File.WriteAllBytesAsync("SHA256SUMS.sig", result.Signature);
 ```
-
-Installation starts after three seconds; press Ctrl+C to cancel. Then open `http://localhost:8080`.
-
-### apt package filesystem layout
-
-When installed via `apt install aiursoft-esrpSign`, the following paths are created:
-
-| Role | Path | `apt remove` | `apt purge` |
-|------|------|:---:|:---:|
-| Working directory & binaries | `/usr/share/aiursoft-esrpSign/` | ✓ | ✓ |
-| Config file | `/etc/aiursoft-esrpSign/appsettings.json` | | ✓ |
-| Runtime data (DB, storage, keys) | `/var/lib/aiursoft-esrpSign/` | | |
-| systemd unit | `/lib/systemd/system/aiursoft-esrpSign.service` | ✓ | ✓ |
-
-The config file is a dpkg conffile — kept on `remove`, deleted only on `purge`.
-Runtime data under `/var/lib/aiursoft-esrpSign/` is user data and intentionally never removed by dpkg.
 
 ## Run manually
 
-Requirements about how to run
-
-1. Install [.NET 10 SDK](http://dot.net/) and [Node.js](https://nodejs.org/).
-2. The .NET build automatically runs `npm ci` and `npm run build` to prepare the frontend assets. Node.js and npm must be available when building from source.
-3. Execute `dotnet run --project src/Aiursoft.EsrpSign/Aiursoft.EsrpSign.csproj -- --urls http://localhost:5000` to run the app.
-4. Use your browser to view [http://localhost:5000](http://localhost:5000).
+1. Install the .NET 10 SDK, Node.js, GnuPG, and `libargon2-1` on Linux. The .NET build prepares the frontend assets with npm.
+2. Run `dotnet run --project src/Aiursoft.EsrpSign -- --urls http://localhost:5000`.
+3. Open [http://localhost:5000](http://localhost:5000). For local Development, the default administrator is `admin@default.com` with password `Admin@123456!`.
 
 ## Run in Microsoft Visual Studio
 
-1. Open the `.sln` file in the project path.
-2. Press `F5` to run the app.
+1. Open `Aiursoft.EsrpSign.sln`.
+2. Run the web project with the Linux or WSL development environment defined above.
 
 ## Run in Docker
 
-First, install Docker [here](https://docs.docker.com/get-docker/).
-
-Then run the following commands in a Linux shell:
+Build the image from this source tree. Set the initial administrator password in your shell before starting the application against a new database.
 
 ```bash
-image=aiursoft/esrpSign
-appName=esrpSign
-sudo docker pull $image
-sudo docker run -d --name $appName --restart unless-stopped -p 5000:5000 --mount type=volume,source=$appName-data,target=/data $image
+docker build -t esrpsign .
+docker run --name esrpsign -p 127.0.0.1:5000:5000 \
+  --env AppSettings__Local__InitialAdminPassword \
+  --mount type=volume,source=esrpsign-data,target=/data esrpsign
 ```
 
-That will start a web server at `http://localhost:5000` and you can test the app.
-
-The docker image has the following context:
-
-| Properties  | Value                           |
-|-------------|---------------------------------|
-| Image       | aiursoft/esrpSign               |
-| Ports       | 5000                            |
-| Binary path | /app                            |
-| Data path   | /data                           |
-| Config path | /data/appsettings.json          |
+Open [http://localhost:5000](http://localhost:5000). The container uses GnuPG and Argon2 from the base distribution.
 
 ## Usage
 
-Sign in with the initial local account to explore user and role management, files, settings and the shared application UI. Use the configuration below to choose local accounts or OIDC for your deployment.
+### Company signing keys
 
-### Projects using Aiursoft EsrpSign
+Grant **Create Company Signing Keys** and **Sign with Company Keys** to the appropriate roles in the permissions administration. These are independent grants. In **Company Signing Keys**, authorized users can create a key with a passphrase or download a detached signature for UTF-8 text. Keys are shared company assets and remain available when the creator's account is removed.
 
-* [Stathub](https://github.com/aiursoftweb/stathub)
-* [MarkToHtml](https://github.com/aiursoftweb/marktohtml)
-* [MusicTools](https://github.com/aiursoftweb/musictools)
-* [AnduinOS Home](https://github.com/aiursoftweb/AnduinOS-Home)
-* [Manhours](https://github.com/aiursoftweb/manhours)
-* [Tracer](https://github.com/aiursoftweb/tracer)
-* [Warp](https://github.com/aiursoftweb/warp)
-* [AiurDrive](https://github.com/aiursoftweb/aiurdrive)
-* [EmployeeCenter](https://github.com/aiursoftweb/employeecenter)
-* [Git Mirror Server](https://github.com/aiursoftweb/gitmirrorserver)
-* [CppRunner](https://github.com/aiursoftweb/cpprunner)
-* [Ollama Gateway](https://github.com/aiursoftweb/ollamagateway)
-* [Polls](https://github.com/aiursoftweb/polls)
-* [WeChatExam](https://github.com/aiursoftweb/wechatexam)
-* [MusicExam](https://github.com/aiursoftweb/musicexam)
-* [CorpHome](https://github.com/aiursoftweb/corphome)
-* [Events Recorder](https://github.com/aiursoftweb/eventsrecorder)
-* [Translate](https://github.com/aiursoftweb/translate)
-* [Apkg](https://github.com/aiursoftweb/apkg)
-* [Nupkg](https://github.com/aiursoftweb/nupkg)
-* [Nopkg](https://github.com/aiursoftweb/nopkg)
-* [HowToCook Viewer](https://github.com/aiursoftweb/howtocookviewer)
-* [Kanban](https://github.com/aiursoftweb/kanban)
-* [MoongladeV2](https://github.com/aiursoftweb/moongladev2)
-* [DocsViewer](https://github.com/aiursoftweb/docsviewer)
-* [S360](https://github.com/aiursoftweb/s360)
-* [AlertCenter](https://github.com/aiursoftweb/alertcenter)
-* [ChessServer](https://github.com/aiursoftweb/chessserver)
+Anyone can browse public key fingerprints and download the binary OpenPGP public keys. Use `gpg --verify SHA256SUMS.sig SHA256SUMS` after importing the intended public key and checking its fingerprint through a trusted channel.
 
-### README structure
+### Personal API Keys
 
-Derived application READMEs select applicable level-two sections from this README, keeping their exact names and order:
+Create a personal API key from **Settings → API Keys** and copy it when it is shown. The server stores a hash. Requests use `Authorization: Bearer <personal-api-key>`. Expiration, revocation, account lockout, and changes to the owner's local application permissions are checked for each protected request.
 
-1. `Overview`
-2. `CLI & SDK`
-3. `Try`
-4. `Install with Docker`
-5. `Run manually`
-6. `Run in Microsoft Visual Studio`
-7. `Run in Docker`
-8. `Usage`
-9. `Configuration`
-10. `Documentation`
-11. `How to contribute`
-12. `License`
+| Request | Authorization | Body or result |
+| --- | --- | --- |
+| `GET /api/v1/signing-keys` | Public | Key ID, name, fingerprint and creation time |
+| `GET /api/v1/signing-keys/{id}/public-key` | Public | Base64-encoded public key in the AiurProtocol response |
+| `POST /api/v1/signing-keys` | Personal API Key and create permission | JSON with `name` and `passphrase` |
+| `POST /api/v1/signing-keys/{id}/sign` | Personal API Key and sign permission | JSON with `passphrase` and Base64 `data`; returns a Base64 OpenPGP detached signature |
 
-Omit sections that do not apply. Keep the project name, badges and short description above the sections. Place product features in `Overview`, client installation and SDK availability in `CLI & SDK`, task examples and permission requirements in `Usage`, and reference links in `Documentation`. Product-specific topics use level-three or deeper headings within these sections; they do not introduce new level-two sections. Keep existing link anchors working when reorganizing topics.
-
-Document only available packages and tested commands. Source-only clients must include build instructions rather than a tool installation command. Keep each application's commands, permissions, dependencies and deployment details accurate; the shared structure does not make product behavior identical. README content remains project-specific rather than being copied wholesale by NugetNinja.
-
-### Client availability
-
-<a name="cli--sdk"></a>
-
-EsrpSign itself does not publish a CLI tool or a standalone SDK. Applications that provide clients document their actual installation commands, authentication and first request here.
-
-The standard heading formula for EsrpSign-derived ASP.NET Core applications is:
-
-`AOW {CCSA:Optional} {T:Optional}I RRR U {ANYTHING:Optional} CS {D:Optional}HL`
-
-Use `Aiursoft <project name>` as the title, followed by `Overview` and its `What is <project name>?` subsection. When clients exist, select `CLI`, `SDK`, and `Android app` under `CLI & SDK` in that order. `Try` requires a real demo; `Documentation` is optional. Keep product-specific subsections under `Usage`. Keep full configuration and its comments in `Configuration`, followed by `Shared settings`. An applicable `apt package filesystem layout` remains under the installation section. Preserve existing content and link anchors when reorganizing the README.
+The signature input may be up to 64 KiB. This suits release manifests such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. Files sent using the SDK are signed byte for byte.
 
 ## Configuration
 
-<a name="configuration-guide"></a>
+| Setting | Purpose |
+| --- | --- |
+| `AppSettings__Local__InitialAdminPassword` | Bootstrap password for a new database outside Development. Use a unique password of at least 12 characters that meets the account password policy. |
+| `AppSettings__AuthProvider` | `Local` by default. Select `OIDC` and configure its authority and client settings for corporate sign-in. |
+| `ConnectionStrings__DbType` | `Sqlite` by default. The application also supports `MySql`. |
+| `Storage__Path` | Persistent data path. The Docker image uses `/data`. |
+| `Signing__DataProtectionKeyPath` | Override the Data Protection key ring path. The default is `DataProtection` under the storage path, outside publicly served files. |
 
-The defaults run as a standalone application with SQLite, local accounts, local file storage, and no ClickHouse server. Change a setting only after preparing the dependency named in its comment.
+The passphrase derives an AES-256-GCM encryption key using Argon2id with a random salt. ASP.NET Core Data Protection wraps each ciphertext with a key-specific purpose. Keep the database and Data Protection key ring persistent and private. Back up both and store each signing passphrase in the company password manager. Decrypted OpenPGP material exists during signing in process memory and a temporary Linux shared-memory directory.
 
-The Docker image copies this file to `/data/appsettings.json` on its first start and keeps that copy on later starts. Mount `/data` as a persistent volume. To override a value without editing the file, use an environment variable with double underscores, such as `Storage__Path` or `AppSettings__OIDC__ClientSecret`.
-
-```jsonc
-{
-  "ConnectionStrings": {
-    // True: cache EF Core query results in this process. False: read from the database on every query.
-    "AllowCache": "True",
-
-    // Sqlite: use a local database file and no database server. MySql: use an external MySQL server.
-    // When changing this value, also replace DefaultConnection with a connection string for that provider.
-    "DbType": "Sqlite",
-    // With Sqlite, this creates app.db in the process working directory and applies migrations at startup.
-    "DefaultConnection": "DataSource=app.db;Cache=Shared"
-
-    // MySql requires a reachable server, database, user, and password. The application applies migrations at startup.
-    // sudo docker run -d --name db -e MYSQL_RANDOM_ROOT_PASSWORD=true -e MYSQL_DATABASE=esrpSign -e MYSQL_USER=esrpSign -e MYSQL_PASSWORD=esrpSign_password -p 3306:3306 hub.aiursoft.com/mysql
-    //"DbType": "MySql",
-    //"DefaultConnection": "Server=localhost;Database=esrpSign;Uid=esrpSign;Pwd=esrpSign_password;"
-  },
-  "Storage": {
-    // Writable local directory for public Workspace files and token-protected private Vault files.
-    // This is not an S3 or MinIO bucket.
-    // The Docker image changes /tmp/data to /data; mount /data as a persistent volume in production.
-    "Path": "/tmp/data",
-
-    // Optional second hostname for this application's own /download endpoints; this is not an S3 or MinIO URL.
-    // Example: set https://files.example.com, point that DNS name to this server, and add this Caddy route:
-    // files.example.com {
-    //     reverse_proxy 127.0.0.1:5000
-    // }
-    // Replace 127.0.0.1:5000 with the same upstream used by the web UI. Leave empty to use the UI hostname.
-    "PublicOrigin": "",
-
-    // False: verified images and configured media can open on the normal web hostname.
-    // True: inline viewing works only through PublicOrigin; the same request on the UI hostname downloads the file.
-    // True requires PublicOrigin plus DNS, TLS, and a reverse-proxy route to this same application instance.
-    "RequireDedicatedInlineOrigin": false,
-
-    // False: only verified images and SafeInlineMediaExtensions open in the browser; every other file downloads.
-    // True: every file type may open through PublicOrigin, and HTML or SVG scripts may run there.
-    // True requires RequireDedicatedInlineOrigin=true and a PublicOrigin that receives no application cookies.
-    "AllowArbitraryInlineOnDedicatedOrigin": false,
-
-    // File extensions allowed to open after content-signature validation. Empty means no extra audio, video, or SVG.
-    // Supported values are mp3, mp4, ogg, svg, wav, and webm. This does not grant upload permission.
-    "SafeInlineMediaExtensions": ["svg"],
-
-    // SVG opens only when svg is enabled above and its Workspace path starts with an entry in this list.
-    // Example: [ "markdown-images" ]. Empty means every SVG downloads.
-    "SafeInlineSvgSubfolders": ["project-logo"],
-
-    // These values are copied into newly issued signed upload tokens; existing tokens keep their old policy.
-    "UploadPolicy": {
-      // False: a valid signed upload token is enough. True: the uploader must also be signed in to this application.
-      "RequireAuthenticatedUser": false,
-
-      // False: preserve spaces in uploaded file names. True: save each space as a hyphen.
-      "ReplaceSpacesWithHyphens": false
-    }
-  },
-  "AppSettings": {
-    // Local: use built-in accounts and passwords. OIDC: redirect sign-in to an external identity provider.
-    // OIDC also requires the OIDC section below and a provider callback URL of https://<web-host>/signin-oidc.
-    "AuthProvider": "Local",
-
-    // Empty: assign no automatic role. Otherwise, assign this role to every new local or OIDC user.
-    // With Local, create the role first. With OIDC, the application creates it during account synchronization.
-    "DefaultRole": "",
-
-    // False: sign-in ends when the browser session closes. True: issue a persistent sign-in cookie.
-    "PersistsSignIn": false,
-
-    // This section is used only when AuthProvider is OIDC.
-    "OIDC": {
-      // Provider discovery base URL. It must be reachable by the application and should use HTTPS in production.
-      "Authority": "https://auth.aiursoft.com/application/o/esrpSign",
-      // Client identifier created for this application in the OIDC provider.
-      "ClientId": "",
-      // Client secret created by the provider. Set AppSettings__OIDC__ClientSecret instead of committing a real secret.
-      "ClientSecret": "",
-
-      // Claim containing role names. On every login, local roles are replaced by these roles plus DefaultRole.
-      "RolePropertyName": "groups",
-      // Required claim used as the local username when an OIDC account is first created.
-      "UsernamePropertyName": "preferred_username",
-      // Required claim copied to the local display name on every login.
-      "UserDisplayNamePropertyName": "name",
-      // Required unique email claim. The provider must keep it verified, unique, and stable.
-      "EmailPropertyName": "email",
-      // Required immutable account identifier. Keep this mapped to the standard OIDC sub claim.
-      "UserIdentityPropertyName": "sub"
-    },
-
-    // This section is used only when AuthProvider is Local.
-    "Local": {
-      // True: show self-registration and allow new local accounts. False: existing users can sign in, but cannot register.
-      "AllowRegister": true,
-      // True: require only six characters. False: require eight characters with upper, lower, digit, and symbol.
-      "AllowWeakPassword": true
-    }
-  },
-  "GlobalSettings": {
-    // Leave an entry commented to use the database value or built-in default.
-    // Uncommenting an entry forces that value and overrides changes made in the administration UI.
-
-    // True: users may change their display nickname. False: only administrators control it.
-    // "Allow_User_Adjust_Nickname": "True",
-    // Text shown as the brand name in the footer.
-    // "BrandName": "Aiursoft",
-    // URL opened when a user clicks the footer brand name.
-    // "BrandHomeUrl": "https://www.aiursoft.com/",
-    // Mainland China ICP license number. Empty hides it.
-    // "Icp": "",
-    // Application name shown in the web interface.
-    // "ProjectName": "Aiursoft EsrpSign"
-  },
-  "Logging": {
-    "LogLevel": {
-      // Minimum level for application logs. Typical values: Debug, Information, Warning, Error, or None.
-      "Default": "Information",
-      // Separate minimum level for ASP.NET Core framework logs; Warning reduces routine request noise.
-      "Microsoft.AspNetCore": "Warning"
-    },
-    "Clickhouse": {
-      // False: do not send logs to ClickHouse. True: create TableName at startup and send logs in batches.
-      // Before enabling, provide a reachable ClickHouse server and valid credentials in ConnectionString.
-      "Enabled": false,
-      // ClickHouse host, protocol, port, credentials, and database. Used only when Enabled is true.
-      "ConnectionString": "Host=localhost;Protocol=http;Port=8123;User=default;Password=;Database=AspNetCoreLogs",
-      // ClickHouse table created and used for application logs when Enabled is true.
-      "TableName": "EsrpSignLogs"
-    }
-  },
-  // ASP.NET Core Host-header allowlist; this is not a CORS setting.
-  // * accepts every hostname. In production, use semicolon-separated names such as example.com;www.example.com.
-  "AllowedHosts": "*"
-}
-```
-
-### Shared settings
-
-- `ConnectionStrings` selects the database provider and connection. Prepare the external database before choosing MySQL; keep the SQLite file persistent when using SQLite.
-- `Storage` configures local application files. Keep the storage directory persistent and use the documented hostname and upload policies for shared downloads.
-- `AppSettings` controls authentication and account synchronization. Choose local accounts or configure the OIDC authority, client and `/signin-oidc` callback; use environment variables for credentials.
-- Uncommented `GlobalSettings` entries override the database-backed administration settings. Leave entries commented to use the stored values or application defaults.
-- `Logging:LogLevel` controls application and framework verbosity. Configure the optional ClickHouse exporter only when its server and credentials are ready.
-- `AllowedHosts` is the ASP.NET Core Host-header allowlist, not a CORS setting.
-
-## Documentation
-
-The [application configuration](src/Aiursoft.EsrpSign/appsettings.json) documents the available settings. The [shared file manifest](ninja.yaml) identifies files maintained across derived applications.
+Serve shared deployments over HTTPS. Close local self-registration if using a restricted employee deployment. With OIDC, group changes are synchronized to the application's local roles when the user signs in.
 
 ## How to contribute
 
-There are many ways to contribute to the project: logging bugs, submitting pull requests, reporting issues, and creating suggestions.
-
-Even if you with push rights on the repository, you should create a personal fork and create feature branches there when you need them. This keeps the main repository clean and your workflow cruft out of sight.
-
-We're also interested in your feedback on the future of this project. You can submit a suggestion or feature request through the issue tracker. To make this process more effective, we're asking that these include more information to help define them more clearly.
+Build and test the solution before opening a merge request. Changes to the data model require migrations for both SQLite and MySQL.
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+ESRP Sign is distributed under the [MIT License](./LICENSE).

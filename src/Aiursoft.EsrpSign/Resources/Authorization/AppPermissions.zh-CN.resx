@@ -103,4 +103,16 @@
     <value>查看系统上下文</value>
   </data>
 
+  <data name="Create Company Signing Keys" xml:space="preserve">
+    <value>创建公司密钥</value>
+  </data>
+  <data name="Allows creating OpenPGP signing keys for the company." xml:space="preserve">
+    <value>允许为公司创建 OpenPGP 签名密钥。</value>
+  </data>
+  <data name="Sign with Company Keys" xml:space="preserve">
+    <value>调用公司密钥执行签名</value>
+  </data>
+  <data name="Allows signing with company keys when the key passphrase is provided." xml:space="preserve">
+    <value>提供正确的密钥口令后，允许使用公司密钥执行签名。</value>
+  </data>
 </root>

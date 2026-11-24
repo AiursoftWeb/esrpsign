@@ -21,6 +21,10 @@ public static class AppPermissionNames
     // Permission Management
     public const string CanReadPermissions = nameof(CanReadPermissions);
 
+    // Company Signing Keys
+    public const string CanCreateCompanySigningKeys = nameof(CanCreateCompanySigningKeys);
+    public const string CanSignWithCompanyKeys = nameof(CanSignWithCompanyKeys);
+
     // System Management
     public const string CanViewSystemContext = nameof(CanViewSystemContext);
     public const string CanRebootThisApp = nameof(CanRebootThisApp);

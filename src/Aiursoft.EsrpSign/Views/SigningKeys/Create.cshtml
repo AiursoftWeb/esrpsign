@@ -1,0 +1,25 @@
+@model Aiursoft.EsrpSign.Models.SigningKeysViewModels.CreateViewModel
+
+<h1 class="h3 mb-3">@Localizer["Create Company Signing Key"]</h1>
+<div class="card">
+    <div class="card-body">
+        <form asp-action="Create" method="post" autocomplete="off">
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">@Localizer["Name"]</label>
+                <input asp-for="Name" class="form-control" required />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Passphrase" class="form-label">@Localizer["Key Passphrase"]</label>
+                <input asp-for="Passphrase" type="password" value="" autocomplete="new-password"
+                       minlength="12" aria-describedby="passphrase-help" class="form-control" required />
+                <div id="passphrase-help" class="form-text">
+                    @Localizer["Keep the passphrase in your company password manager. It is required every time the key signs."]
+                </div>
+                <span asp-validation-for="Passphrase" class="text-danger"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">@Localizer["Create Signing Key"]</button>
+            <a asp-action="Index" class="btn btn-link">@Localizer["Cancel"]</a>
+        </form>
+    </div>
+</div>
