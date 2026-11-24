@@ -1,0 +1,17 @@
+[Unit]
+Description=Aiursoft EsrpSign Web Application
+After=network.target
+
+[Service]
+WorkingDirectory=/usr/share/aiursoft-esrpSign
+ExecStart=/usr/bin/dotnet /usr/share/aiursoft-esrpSign/Aiursoft.EsrpSign.dll --urls http://*:5000
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=aiursoft-esrpSign
+User=www-data
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=HOME=/var/lib/aiursoft-esrpSign
+
+[Install]
+WantedBy=multi-user.target
