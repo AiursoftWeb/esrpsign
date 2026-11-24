@@ -33,23 +33,32 @@ sealed class OpenPgp : IAsyncDisposable
         return new GeneratedKey(fingerprint, publicKey, privateKey);
     }
 
-    public static async Task<byte[]> Sign(string fingerprint, byte[] privateKey, byte[] data)
+    public static async Task<byte[]> Sign(string fingerprint, byte[] privateKey, Stream data,
+        CancellationToken cancellationToken)
     {
         await using var gpg = new OpenPgp();
-        await gpg.Run(privateKey, "--import");
-        return await gpg.Run(data, "--digest-algo", "SHA256", "--local-user", fingerprint,
+        using var key = new MemoryStream(privateKey, writable: false);
+        await gpg.Run(key, cancellationToken, "--import");
+        return await gpg.Run(data, cancellationToken, TimeSpan.FromMinutes(3), "--digest-algo", "SHA256", "--local-user", fingerprint,
             "--output", "-", "--detach-sign");
     }
 
-    private Task<byte[]> Run(byte[]? input, params string[] arguments) =>
+    private Task<byte[]> Run(Stream? input, params string[] arguments) =>
+        Run(input, CancellationToken.None, arguments);
+
+    private Task<byte[]> Run(Stream? input, CancellationToken cancellationToken, params string[] arguments) =>
+        Run(input, cancellationToken, TimeSpan.FromSeconds(30), arguments);
+
+    private Task<byte[]> Run(Stream? input, CancellationToken cancellationToken, TimeSpan deadline, params string[] arguments) =>
         Execute("gpg", input, ["--homedir", _home, "--no-options", "--batch", "--yes", "--no-tty",
-            "--pinentry-mode", "loopback", "--passphrase", "", .. arguments]);
+            "--pinentry-mode", "loopback", "--passphrase", "", .. arguments], cancellationToken, deadline);
 
     public async ValueTask DisposeAsync()
     {
         try
         {
-            await Execute("gpgconf", null, ["--homedir", _home, "--kill", "gpg-agent"]);
+            await Execute("gpgconf", null, ["--homedir", _home, "--kill", "gpg-agent"], CancellationToken.None,
+                TimeSpan.FromSeconds(30));
         }
         finally
         {
@@ -57,9 +66,11 @@ sealed class OpenPgp : IAsyncDisposable
         }
     }
 
-    private static async Task<byte[]> Execute(string executable, byte[]? input, string[] arguments)
+    private static async Task<byte[]> Execute(string executable, Stream? input, string[] arguments,
+        CancellationToken cancellationToken, TimeSpan deadline)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(deadline);
         var startInfo = new ProcessStartInfo(executable)
         {
             RedirectStandardInput = true,
@@ -89,18 +100,21 @@ sealed class OpenPgp : IAsyncDisposable
         finally
         {
             if (!process.HasExited)
+            {
                 process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync(CancellationToken.None);
+            }
             if (output.TryGetBuffer(out var buffer))
                 System.Security.Cryptography.CryptographicOperations.ZeroMemory(buffer.AsSpan());
         }
     }
 
-    private static async Task WriteInput(Stream stdin, byte[]? input, CancellationToken cancellationToken)
+    private static async Task WriteInput(Stream stdin, Stream? input, CancellationToken cancellationToken)
     {
         await using (stdin)
         {
             if (input is not null)
-                await stdin.WriteAsync(input, cancellationToken);
+                await input.CopyToAsync(stdin, cancellationToken);
         }
     }
 }

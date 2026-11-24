@@ -1,5 +1,8 @@
+using System.Diagnostics;
+using Aiursoft.AiurProtocol.Exceptions;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -123,6 +126,91 @@ public sealed class CompanySigningTests : TestBase
         }
         using var after = await Http.PostAsJsonAsync(ApiPath, malformedCreate);
         Assert.AreEqual(HttpStatusCode.Unauthorized, after.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task FileSigningRejectsUnauthenticatedAndOversizedRequests()
+    {
+        var path = $"{ApiPath}/{Guid.NewGuid():D}/sign-file";
+        using var anonymousBody = new MultipartContent("mixed");
+        using var anonymous = await Http.PostAsync(path, anonymousBody);
+        Assert.AreEqual(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+        await LoginAsAdmin();
+        var token = await IssueApiKey();
+        using var excessive = new HttpRequestMessage(HttpMethod.Post, path);
+        using var empty = new ByteArrayContent([]);
+        excessive.Content = empty;
+        excessive.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        excessive.Headers.ExpectContinue = true;
+        excessive.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/mixed; boundary=parts");
+        excessive.Content.Headers.ContentLength = SignFileRequest.MaxRequestBytes + 1L;
+        using var oversized = await Http.SendAsync(excessive);
+        Assert.AreEqual(HttpStatusCode.RequestEntityTooLarge, oversized.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task StreamingEndpointSignsOriginalFileBytesAndRequiresTheKeyPassphrase()
+    {
+        var programs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        if (!OperatingSystem.IsLinux() ||
+            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpg"))) ||
+            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpgv"))) ||
+            !NativeLibrary.TryLoad("libargon2.so.1", typeof(CompanySigningTests).Assembly, null, out var library))
+            Assert.Inconclusive("End-to-end signing requires Linux, GnuPG, gpgv and libargon2.");
+        else
+            NativeLibrary.Free(library);
+
+        const string passphrase = "test recovery 密钥口令";
+        using var files = new TestFiles();
+        var contentPath = Path.Combine(files.Path, "recovery.img");
+        var signaturePath = contentPath + ".sig";
+        var publicKeyPath = Path.Combine(files.Path, "recovery.gpg");
+        var original = RandomNumberGenerator.GetBytes(128 * 1024);
+        await File.WriteAllBytesAsync(contentPath, original);
+
+        using var services = new ServiceCollection().AddLogging()
+            .AddEsrpSignSdk(Http.BaseAddress!.ToString()).BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        var sdk = scope.ServiceProvider.GetRequiredService<EsrpSignApiClient>();
+
+        await LoginAsAdmin();
+        var token = await IssueApiKey();
+        var created = await sdk.CreateKeyAsync(token,
+            new CreateSigningKeyRequest { Name = "Recovery testing", Passphrase = passphrase });
+        var keyId = created.Key.Id;
+        var signed = await sdk.SignFileAsync(token, keyId, passphrase, contentPath);
+        Assert.AreEqual(Code.JobDone, signed.Code);
+        await File.WriteAllBytesAsync(signaturePath, signed.Signature);
+        await File.WriteAllBytesAsync(publicKeyPath, (await sdk.GetPublicKeyAsync(keyId)).PublicKey);
+        Assert.AreEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, signaturePath, contentPath));
+
+        original[0] ^= 1;
+        await File.WriteAllBytesAsync(contentPath, original);
+        Assert.AreNotEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, signaturePath, contentPath));
+
+        var failure = await Assert.ThrowsExactlyAsync<AiurUnexpectedServerResponseException>(() =>
+            sdk.SignFileAsync(token, keyId, "different password", contentPath));
+        Assert.AreEqual(Code.WrongKey, failure.Response.Code);
+    }
+
+    private static async Task<int> VerifyWithGpg(string home, string publicKey, string signature, string data)
+    {
+        using var verifier = Process.Start(new ProcessStartInfo("gpgv")
+        {
+            ArgumentList = { "--homedir", home, "--keyring", publicKey, signature, data },
+            UseShellExecute = false
+        })!;
+        await verifier.WaitForExitAsync();
+        return verifier.ExitCode;
+    }
+
+    private sealed class TestFiles : IDisposable
+    {
+        public string Path { get; } = Directory.CreateTempSubdirectory("esrp-sign-file-").FullName;
+
+        public void Dispose() => Directory.Delete(Path, recursive: true);
     }
 
     private async Task<string> IssueApiKey()

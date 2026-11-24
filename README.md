@@ -130,8 +130,9 @@ Create a personal API key from **Settings → API Keys** and copy it when it is 
 | `GET /api/v1/signing-keys/{id}/public-key` | Public | Base64-encoded public key in the AiurProtocol response |
 | `POST /api/v1/signing-keys` | Personal API Key and create permission | JSON with `name` and `passphrase` |
 | `POST /api/v1/signing-keys/{id}/sign` | Personal API Key and sign permission | JSON with `passphrase` and Base64 `data`; returns a Base64 OpenPGP detached signature |
+| `POST /api/v1/signing-keys/{id}/sign-file` | Personal API Key and sign permission | Streamed `multipart/mixed`: UTF-8 passphrase first (`text/plain`), then the original binary file (`application/octet-stream`); returns the same AiurProtocol response |
 
-The signature input may be up to 64 KiB. This suits release manifests such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. Files sent using the SDK are signed byte for byte.
+Use the JSON endpoint for inputs up to 64 KiB, such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. For a file up to 64 MiB, use `EsrpSignApiClient.SignFileAsync(apiKey, keyId, passphrase, filePath, cancellationToken)`. Save the returned `Signature` as the detached `.sig` file and verify it against the original file with the corresponding public key.
 
 ## Configuration
 

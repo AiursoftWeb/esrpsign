@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
+using Aiursoft.EsrpSign.SDK.Models;
 
 namespace Aiursoft.EsrpSign.Services.Signing;
 
@@ -14,7 +15,7 @@ public sealed class PrivateKeys(IDataProtectionProvider provider)
     private const int HeaderSize = SaltSize + NonceSize + TagSize;
 
     public static bool IsValidPassphrase(string? value) =>
-        value is { Length: >= 12 } && Encoding.UTF8.GetByteCount(value) <= 256;
+        value is { Length: >= 12 } && Encoding.UTF8.GetByteCount(value) <= SignFileRequest.MaxPassphraseBytes;
 
     public byte[] Seal(Guid id, string passphrase, byte[] privateKey)
     {
