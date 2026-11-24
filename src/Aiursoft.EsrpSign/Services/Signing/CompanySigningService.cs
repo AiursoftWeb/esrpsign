@@ -57,6 +57,13 @@ public sealed class CompanySigningService(
     public async Task<byte[]?> SignAsync(Guid id, string passphrase, byte[] data, string userId,
         CancellationToken cancellationToken)
     {
+        using var input = new MemoryStream(data, writable: false);
+        return await SignAsync(id, passphrase, input, userId, cancellationToken);
+    }
+
+    public async Task<byte[]?> SignAsync(Guid id, string passphrase, Stream data, string userId,
+        CancellationToken cancellationToken)
+    {
         var key = await db.CompanySigningKeys.AsNoTracking()
             .Where(candidate => candidate.Id == id)
             .Select(candidate => new { candidate.PrivateEnvelope, candidate.Fingerprint })
@@ -69,7 +76,7 @@ public sealed class CompanySigningService(
         var privateKey = protection.Open(id, passphrase, key.PrivateEnvelope);
         try
         {
-            var signature = await OpenPgp.Sign(key.Fingerprint, privateKey, data);
+            var signature = await OpenPgp.Sign(key.Fingerprint, privateKey, data, cancellationToken);
             logger.LogInformation("User {UserId} signed with company key {SigningKeyId}.", userId, id);
             return signature;
         }
