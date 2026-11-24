@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Company Signing Keys" xml:space="preserve">
+    <value>公司签名密钥</value>
+  </data>
+  <data name="Download a public key to verify an OpenPGP signature." xml:space="preserve">
+    <value>下载公钥以验证 OpenPGP 签名。</value>
+  </data>
+  <data name="Create Signing Key" xml:space="preserve">
+    <value>创建签名密钥</value>
+  </data>
+  <data name="No company signing keys yet." xml:space="preserve">
+    <value>暂无公司签名密钥。</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Fingerprint" xml:space="preserve">
+    <value>指纹</value>
+  </data>
+  <data name="Created" xml:space="preserve">
+    <value>创建时间</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>操作</value>
+  </data>
+  <data name="Download Public Key" xml:space="preserve">
+    <value>下载公钥</value>
+  </data>
+  <data name="Sign Text" xml:space="preserve">
+    <value>签名字符串</value>
+  </data>
+</root>

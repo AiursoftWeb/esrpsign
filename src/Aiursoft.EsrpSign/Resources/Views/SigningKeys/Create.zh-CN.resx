@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Create Company Signing Key" xml:space="preserve">
+    <value>创建公司签名密钥</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>密钥名称</value>
+  </data>
+  <data name="Key Passphrase" xml:space="preserve">
+    <value>密钥口令</value>
+  </data>
+  <data name="Keep the passphrase in your company password manager. It is required every time the key signs." xml:space="preserve">
+    <value>请在公司的密码管理器中保存口令。每次签名时都需要输入。</value>
+  </data>
+  <data name="Create Signing Key" xml:space="preserve">
+    <value>创建签名密钥</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+</root>

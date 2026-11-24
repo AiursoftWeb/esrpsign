@@ -1,93 +1,98 @@
-# EsrpSign
+# Aiursoft ESRP Sign
 
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Pipeline stat](https://badge-proxy.aiursoft.com/aiursoft/esrpsign/badges/master/pipeline.svg)](https://gitlab.aiursoft.com/aiursoft/esrpsign/-/pipelines)
+[![Test Coverage](https://badge-proxy.aiursoft.com/aiursoft/esrpsign/badges/master/coverage.svg)](https://gitlab.aiursoft.com/aiursoft/esrpsign/-/pipelines)
+[![S360 compliance](https://s360.aiursoft.com/badge.svg?project=aiursoft%2Fesrpsign)](https://s360.aiursoft.com/SupplyChain?tab=projects&project=aiursoft%2Fesrpsign&scope=baseline&ecosystem=all)
 
+## Overview
 
-## Getting started
+### What is ESRP Sign?
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+ESRP Sign creates and protects company OpenPGP signing keys. Employees with permission can create keys or sign with an existing key's passphrase. Anyone can download a public key to verify a release. The web application uses the Aiursoft Template for its UI, authentication, permissions, and database providers.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## SDK
 
-## Add your files
+The `Aiursoft.EsrpSign.SDK` project provides an AiurProtocol client for .NET. The client does not retry key creation or signing requests automatically.
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+```csharp
+using Aiursoft.EsrpSign.SDK;
+using Aiursoft.EsrpSign.SDK.Models;
 
+services.AddEsrpSignSdk("https://sign.example.com");
+
+// Resolve EsrpSignApiClient from the application's service scope.
+var result = await client.SignAsync(apiKey, signingKeyId, new SignRequest
+{
+    Passphrase = passphrase,
+    Data = await File.ReadAllBytesAsync("SHA256SUMS")
+});
+await File.WriteAllBytesAsync("SHA256SUMS.sig", result.Signature);
 ```
-cd existing_repo
-git remote add origin https://gitlab.aiursoft.com/aiursoft/esrpsign.git
-git branch -M master
-git push -uf origin master
+
+## Run manually
+
+1. Install the .NET 10 SDK, Node.js, GnuPG, and `libargon2-1` on Linux. The .NET build prepares the frontend assets with npm.
+2. Run `ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Aiursoft.EsrpSign -- --urls http://localhost:5000`.
+3. Open [http://localhost:5000](http://localhost:5000). For local Development, the default administrator is `admin@default.com` with password `Admin@123456!`.
+
+## Run in Microsoft Visual Studio
+
+1. Open `Aiursoft.EsrpSign.sln`.
+2. Run the web project on Linux or WSL with `ASPNETCORE_ENVIRONMENT=Development` in the launch environment.
+
+## Run in Docker
+
+Build the image from this source tree. Set the initial administrator password in your shell before starting the application against a new database.
+
+```bash
+docker build -t esrpsign .
+docker run --name esrpsign -p 127.0.0.1:5000:5000 \
+  --env AppSettings__Local__InitialAdminPassword \
+  --mount type=volume,source=esrpsign-data,target=/data esrpsign
 ```
 
-## Integrate with your tools
-
-* [Set up project integrations](https://gitlab.aiursoft.com/aiursoft/esrpsign/-/settings/integrations)
-
-## Collaborate with your team
-
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Open [http://localhost:5000](http://localhost:5000). The container uses GnuPG and Argon2 from the base distribution.
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Company signing keys
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Grant **Create Company Signing Keys** and **Sign with Company Keys** to the appropriate roles in the permissions administration. These are independent grants. In **Company Signing Keys**, authorized users can create a key with a passphrase or download a detached signature for UTF-8 text. Keys are shared company assets and remain available when the creator's account is removed.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Anyone can browse public key fingerprints and download the binary OpenPGP public keys. Use `gpg --verify SHA256SUMS.sig SHA256SUMS` after importing the intended public key and checking its fingerprint through a trusted channel.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### Personal API Keys
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Create a personal API key from **Settings → API Keys** and copy it when it is shown. The server stores a hash. Requests use `Authorization: Bearer <personal-api-key>`. Expiration, revocation, account lockout, and changes to the owner's local application permissions are checked for each protected request.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+| Request | Authorization | Body or result |
+| --- | --- | --- |
+| `GET /api/v1/signing-keys` | Public | Key ID, name, fingerprint and creation time |
+| `GET /api/v1/signing-keys/{id}/public-key` | Public | Base64-encoded public key in the AiurProtocol response |
+| `POST /api/v1/signing-keys` | Personal API Key and create permission | JSON with `name` and `passphrase` |
+| `POST /api/v1/signing-keys/{id}/sign` | Personal API Key and sign permission | JSON with `passphrase` and Base64 `data`; returns a Base64 OpenPGP detached signature |
+
+The signature input may be up to 64 KiB. This suits release manifests such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. Files sent using the SDK are signed byte for byte.
+
+## Configuration
+
+| Setting | Purpose |
+| --- | --- |
+| `AppSettings__Local__InitialAdminPassword` | Bootstrap password for a new database outside Development. Use a unique password of at least 12 characters that meets the account password policy. |
+| `AppSettings__AuthProvider` | `Local` by default. Select `OIDC` and configure its authority and client settings for corporate sign-in. |
+| `ConnectionStrings__DbType` | `Sqlite` by default. The application also supports `MySql`. |
+| `Storage__Path` | Persistent data path. The Docker image uses `/data`. |
+| `Signing__DataProtectionKeyPath` | Override the Data Protection key ring path. The default follows Template and is `/data/.aspnet/DataProtection-Keys` in Docker. |
+
+The passphrase derives an AES-256-GCM encryption key using Argon2id with a random salt. ASP.NET Core Data Protection wraps each ciphertext with a key-specific purpose. Keep the database and Data Protection key ring persistent and private. Back up both and store each signing passphrase in the company password manager. Decrypted OpenPGP material exists during signing in process memory and a temporary Linux shared-memory directory.
+
+Serve shared deployments over HTTPS. Close local self-registration if using a restricted employee deployment. With OIDC, group changes are synchronized to the application's local roles when the user signs in.
+
+## How to contribute
+
+Build and test the solution before opening a merge request. Changes to the data model require migrations for both SQLite and MySQL.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+ESRP Sign is distributed under the [MIT License](./LICENSE).

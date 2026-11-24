@@ -1,0 +1,25 @@
+@model Aiursoft.EsrpSign.Models.HomeViewModels.IndexViewModel
+
+<vc:marketing-navbar></vc:marketing-navbar>
+
+<section class="container py-5">
+    <div class="row align-items-center justify-content-center py-lg-5 text-center">
+        <div class="col-lg-8">
+            <h1 id="main-slogan" class="display-4 fw-bold">Aiursoft ESRP Sign</h1>
+            <p class="lead text-muted my-4">
+                @Localizer["Sign releases with company OpenPGP keys. Download a public key to verify signed files."]
+            </p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-primary btn-lg">
+                    @Localizer["Browse Public Keys"]
+                </a>
+                @if (User.Identity?.IsAuthenticated != true)
+                {
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">@Localizer["Sign In"]</a>
+                }
+            </div>
+        </div>
+    </div>
+</section>
+
+<vc:marketing-footer></vc:marketing-footer>

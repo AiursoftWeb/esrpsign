@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Sign Text" xml:space="preserve">
+    <value>签名字符串</value>
+  </data>
+  <data name="Text to Sign" xml:space="preserve">
+    <value>原文</value>
+  </data>
+  <data name="Up to 64 KiB of UTF-8 text. Line endings are saved as LF." xml:space="preserve">
+    <value>最多 64 KiB 的 UTF-8 文本，换行统一使用 LF。</value>
+  </data>
+  <data name="Key Passphrase" xml:space="preserve">
+    <value>密钥口令</value>
+  </data>
+  <data name="Sign and Download" xml:space="preserve">
+    <value>签名并下载</value>
+  </data>
+  <data name="Back to Keys" xml:space="preserve">
+    <value>返回密钥列表</value>
+  </data>
+</root>

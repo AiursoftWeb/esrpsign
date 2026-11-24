@@ -1,0 +1,26 @@
+@model Aiursoft.EsrpSign.Models.DashboardViewModels.IndexViewModel
+
+<h1 class="h3 mb-3">Aiursoft ESRP Sign</h1>
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="h4">@Localizer["Company Signing Keys"]</h2>
+                <p>@Localizer["Browse company keys and download public keys to verify releases."]</p>
+                <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-primary">@Localizer["View Keys"]</a>
+            </div>
+        </div>
+    </div>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h4">@Localizer["Personal API Keys"]</h2>
+                    <p>@Localizer["Use a personal API key to authenticate signing jobs with your current permissions."]</p>
+                    <a asp-controller="ApiKeys" asp-action="Index" class="btn btn-outline-primary">@Localizer["Manage API Keys"]</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>

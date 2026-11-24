@@ -1,0 +1,32 @@
+@model Aiursoft.EsrpSign.Models.SigningKeysViewModels.SignViewModel
+@{
+    var key = Model.Key!;
+}
+
+<h1 class="h3 mb-3">@Localizer["Sign Text"]</h1>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">@key.Name</h2>
+        <code class="text-break">@key.Fingerprint</code>
+    </div>
+    <div class="card-body">
+        <form asp-action="Sign" asp-route-id="@key.Id" method="post" autocomplete="off">
+            <div class="mb-3">
+                <label asp-for="Text" class="form-label">@Localizer["Text to Sign"]</label>
+                <textarea asp-for="Text" class="form-control font-monospace" rows="6" required
+                          aria-describedby="sign-text-help"></textarea>
+                <div id="sign-text-help" class="form-text">
+                    @Localizer["Up to 64 KiB of UTF-8 text. Line endings are saved as LF."]
+                </div>
+                <span asp-validation-for="Text" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Passphrase" class="form-label">@Localizer["Key Passphrase"]</label>
+                <input asp-for="Passphrase" type="password" value="" autocomplete="off" class="form-control" required />
+                <span asp-validation-for="Passphrase" class="text-danger"></span>
+            </div>
+            <button type="submit" class="btn btn-primary">@Localizer["Sign and Download"]</button>
+            <a asp-action="Index" class="btn btn-link">@Localizer["Back to Keys"]</a>
+        </form>
+    </div>
+</div>
