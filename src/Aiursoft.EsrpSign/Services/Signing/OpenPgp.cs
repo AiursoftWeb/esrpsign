@@ -71,8 +71,8 @@ sealed class OpenPgp : IAsyncDisposable
         {
             startInfo.ArgumentList.Add(argument);
         }
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Could not start {executable}.");
 
         using var output = new MemoryStream();
         try

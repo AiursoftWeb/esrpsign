@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.RateLimiting;
 using Aiursoft.AiurProtocol.Models;
+using Aiursoft.AiurProtocol.Server;
 using Aiursoft.EsrpSign.Authorization;
 using Aiursoft.EsrpSign.Services.Signing;
 using Microsoft.AspNetCore.Authorization;
@@ -121,6 +122,7 @@ public class Startup : IWebStartup
 
         // Controllers and localization
         services.AddControllersWithViews()
+            .AddAiurProtocol()
             .AddNewtonsoftJson(options =>
             {
                 options.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
