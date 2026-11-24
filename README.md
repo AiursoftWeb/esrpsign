@@ -33,13 +33,13 @@ await File.WriteAllBytesAsync("SHA256SUMS.sig", result.Signature);
 ## Run manually
 
 1. Install the .NET 10 SDK, Node.js, GnuPG, and `libargon2-1` on Linux. The .NET build prepares the frontend assets with npm.
-2. Run `dotnet run --project src/Aiursoft.EsrpSign -- --urls http://localhost:5000`.
+2. Run `ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Aiursoft.EsrpSign -- --urls http://localhost:5000`.
 3. Open [http://localhost:5000](http://localhost:5000). For local Development, the default administrator is `admin@default.com` with password `Admin@123456!`.
 
 ## Run in Microsoft Visual Studio
 
 1. Open `Aiursoft.EsrpSign.sln`.
-2. Run the web project with the Linux or WSL development environment defined above.
+2. Run the web project on Linux or WSL with `ASPNETCORE_ENVIRONMENT=Development` in the launch environment.
 
 ## Run in Docker
 
