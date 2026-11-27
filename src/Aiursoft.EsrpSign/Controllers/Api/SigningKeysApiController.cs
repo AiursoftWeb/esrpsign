@@ -67,13 +67,14 @@ public sealed class SigningKeysApiController(CompanySigningService signing, User
     [RequestSizeLimit(100 * 1024)]
     public async Task<IActionResult> Sign(Guid id, [FromBody] SignRequest? request, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid || request is null || !PrivateKeys.IsValidPassphrase(request.Passphrase))
+        if (!ModelState.IsValid || request is null || !PrivateKeys.IsValidPassphrase(request.Passphrase) ||
+            !Enum.IsDefined(request.Format))
         {
-            return this.Protocol(Code.InvalidInput, "Provide the key passphrase and 1–65,536 bytes of data.");
+            return this.Protocol(Code.InvalidInput, "Provide the key passphrase, a valid signature format, and 1–65,536 bytes of data.");
         }
 
         using var data = new MemoryStream(request.Data, writable: false);
-        return this.Protocol(await SignCore(id, request.Passphrase, data, cancellationToken));
+        return this.Protocol(await SignCore(id, request.Passphrase, data, request.Format, cancellationToken));
     }
 
     [HttpPost("{id:guid}/sign-file")]
@@ -82,8 +83,12 @@ public sealed class SigningKeysApiController(CompanySigningService signing, User
     [EnableRateLimiting(CompanySigningService.CryptoLimiter)]
     [Consumes("multipart/mixed")]
     [RequestSizeLimit(SignFileRequest.MaxRequestBytes)]
-    public async Task<IActionResult> SignFile(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> SignFile(Guid id, [FromQuery] SignatureFormat format = SignatureFormat.DetachedBinary,
+        CancellationToken cancellationToken = default)
     {
+        if (!ModelState.IsValid || !Enum.IsDefined(format))
+            return this.Protocol(Code.InvalidInput, "Unsupported signature format.");
+
         if (Request.ContentLength > SignFileRequest.MaxRequestBytes)
             return StatusCode(StatusCodes.Status413PayloadTooLarge);
 
@@ -113,7 +118,7 @@ public sealed class SigningKeysApiController(CompanySigningService signing, User
             if (file?.ContentType?.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase) != true)
                 return this.Protocol(Code.InvalidInput, "Provide the file as the second part.");
 
-            var result = await SignCore(id, passphrase!, file.Body, cancellationToken);
+            var result = await SignCore(id, passphrase!, file.Body, format, cancellationToken);
             // Only a complete binary part may produce a successful signature.
             if (result is SignResponse &&
                 (file.Body.Length == 0 || await reader.ReadNextSectionAsync(cancellationToken) is not null))
@@ -149,11 +154,12 @@ public sealed class SigningKeysApiController(CompanySigningService signing, User
         }
     }
 
-    private async Task<AiurResponse> SignCore(Guid id, string passphrase, Stream data, CancellationToken cancellationToken)
+    private async Task<AiurResponse> SignCore(Guid id, string passphrase, Stream data, SignatureFormat format,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var signature = await signing.SignAsync(id, passphrase, data, users.GetUserId(User)!, cancellationToken);
+            var signature = await signing.SignAsync(id, passphrase, data, users.GetUserId(User)!, cancellationToken, format);
             return signature is null
                 ? new AiurResponse { Code = Code.NotFound, Message = "Signing key not found." }
                 : new SignResponse { Code = Code.JobDone, Message = "Data signed.", Signature = signature };

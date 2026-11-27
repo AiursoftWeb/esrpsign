@@ -14,4 +14,7 @@ public sealed class SignRequest
     [MinLength(1)]
     [MaxLength(MaxDataBytes)]
     public byte[] Data { get; set; } = [];
+
+    [EnumDataType(typeof(SignatureFormat))]
+    public SignatureFormat Format { get; set; } = SignatureFormat.DetachedBinary;
 }

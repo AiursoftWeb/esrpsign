@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Aiursoft.EsrpSign.SDK.Models;
 
 namespace Aiursoft.EsrpSign.Services.Signing;
 
@@ -34,13 +35,21 @@ sealed class OpenPgp : IAsyncDisposable
     }
 
     public static async Task<byte[]> Sign(string fingerprint, byte[] privateKey, Stream data,
-        CancellationToken cancellationToken)
+        SignatureFormat format, CancellationToken cancellationToken)
     {
+        var formatArguments = format switch
+        {
+            SignatureFormat.DetachedBinary => new[] { "--detach-sign" },
+            SignatureFormat.DetachedArmored => new[] { "--armor", "--detach-sign" },
+            SignatureFormat.ClearSigned => new[] { "--armor", "--clearsign" },
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported signature format.")
+        };
+
         await using var gpg = new OpenPgp();
         using var key = new MemoryStream(privateKey, writable: false);
         await gpg.Run(key, cancellationToken, "--import");
-        return await gpg.Run(data, cancellationToken, TimeSpan.FromMinutes(3), "--digest-algo", "SHA256", "--local-user", fingerprint,
-            "--output", "-", "--detach-sign");
+        return await gpg.Run(data, cancellationToken, TimeSpan.FromMinutes(3),
+            ["--digest-algo", "SHA256", "--local-user", fingerprint, "--output", "-", .. formatArguments]);
     }
 
     private Task<byte[]> Run(Stream? input, params string[] arguments) =>
