@@ -364,7 +364,7 @@ public sealed class CompanySigningTests : TestBase
     }
 
     [TestMethod]
-    public async Task StreamingEndpointSignsOriginalFileBytesAndRequiresTheKeyPassphrase()
+    public async Task StreamingEndpointBindsSignaturesToTheSelectedKeyAndOriginalFileBytes()
     {
         RequireLinuxCryptoRuntime();
 
@@ -385,12 +385,24 @@ public sealed class CompanySigningTests : TestBase
         var token = await IssueApiKey();
         var created = await sdk.CreateKeyAsync(token,
             new CreateSigningKeyRequest { Name = "Recovery testing", Passphrase = passphrase });
+        var other = await sdk.CreateKeyAsync(token,
+            new CreateSigningKeyRequest { Name = "Unrelated release key", Passphrase = passphrase });
+        var otherKeyPath = Path.Combine(files.Path, "other.gpg");
+        await File.WriteAllBytesAsync(otherKeyPath, (await sdk.GetPublicKeyAsync(other.Key.Id)).PublicKey);
+
         var keyId = created.Key.Id;
         var signed = await sdk.SignFileAsync(token, keyId, passphrase, contentPath);
         Assert.AreEqual(Code.JobDone, signed.Code);
         await File.WriteAllBytesAsync(signaturePath, signed.Signature);
         await File.WriteAllBytesAsync(publicKeyPath, (await sdk.GetPublicKeyAsync(keyId)).PublicKey);
         Assert.AreEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, signaturePath, contentPath));
+        Assert.AreNotEqual(0, await VerifyWithGpg(files.Path, otherKeyPath, signaturePath, contentPath));
+
+        var otherSignature = await sdk.SignFileAsync(token, other.Key.Id, passphrase, contentPath);
+        var otherSignaturePath = Path.Combine(files.Path, "other.sig");
+        await File.WriteAllBytesAsync(otherSignaturePath, otherSignature.Signature);
+        Assert.AreEqual(0, await VerifyWithGpg(files.Path, otherKeyPath, otherSignaturePath, contentPath));
+        Assert.AreNotEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, otherSignaturePath, contentPath));
 
         original[0] ^= 1;
         await File.WriteAllBytesAsync(contentPath, original);
