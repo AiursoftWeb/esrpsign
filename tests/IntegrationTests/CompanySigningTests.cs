@@ -12,6 +12,7 @@ using Aiursoft.EsrpSign.Authorization;
 using Aiursoft.EsrpSign.Entities;
 using Aiursoft.EsrpSign.SDK;
 using Aiursoft.EsrpSign.SDK.Models;
+using Aiursoft.EsrpSign.Services.Signing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,6 +59,97 @@ public sealed class CompanySigningTests : TestBase
         CollectionAssert.AreEqual(publicKey, await download.Content.ReadAsByteArrayAsync());
         var json = await Http.GetStringAsync(ApiPath);
         Assert.DoesNotContain(nameof(CompanySigningKey.PrivateEnvelope), json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public async Task DetailsPageShowsPublicMetadataRespectsPermissionsAndHandlesCorruptedEnvelope()
+    {
+        var fingerprint = "408648516EFF334197B121EA3ADA744B1059B23F";
+        var key = new CompanySigningKey
+        {
+            Id = Guid.NewGuid(),
+            Name = "AnduinOS Release Key",
+            Fingerprint = fingerprint,
+            CreatedAt = DateTime.UtcNow,
+            PublicKey = [1, 2, 3, 4],
+            PrivateEnvelope = [9, 8, 7, 6]
+        };
+        await using (var scope = Server!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+            db.CompanySigningKeys.Add(key);
+            await db.SaveChangesAsync();
+        }
+
+        using (var missing = await Http.GetAsync($"/SigningKeys/Details/{Guid.NewGuid():D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.NotFound, missing.StatusCode);
+        }
+
+        // Anonymous visitor sees public metadata, formatted fingerprint, and no passphrase test input.
+        using (var anonDetails = await Http.GetAsync($"/SigningKeys/Details/{key.Id:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, anonDetails.StatusCode);
+            var html = await anonDetails.Content.ReadAsStringAsync();
+            Assert.Contains(key.Id.ToString("D"), html, StringComparison.Ordinal);
+            Assert.Contains(CompanySigningService.FormatFingerprint(fingerprint), html, StringComparison.Ordinal);
+            Assert.Contains($"/SigningKeys/PublicKey/{key.Id:D}", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("verify-passphrase-input", html, StringComparison.Ordinal);
+        }
+
+        using (var anonVerify = await PostForm($"/SigningKeys/VerifyPassphrase/{key.Id:D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = "some-secret-passphrase-123"
+        }, "/Account/Login"))
+        {
+            AssertRedirect(anonVerify, "/Account/Login", exact: false);
+        }
+
+        // Regular authenticated user without CanSignWithCompanyKeys cannot verify passphrases.
+        await RegisterAndLoginAsync();
+        using (var userDetails = await Http.GetAsync($"/SigningKeys/Details/{key.Id:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, userDetails.StatusCode);
+            var html = await userDetails.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("verify-passphrase-input", html, StringComparison.Ordinal);
+        }
+
+        using (var userVerify = await PostForm($"/SigningKeys/VerifyPassphrase/{key.Id:D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = "some-secret-passphrase-123"
+        }, "/ApiKeys/Create"))
+        {
+            AssertRedirect(userVerify, "/Error/Code403", exact: false);
+        }
+
+        // Admin sees the passphrase test form and gets KeyRingUnavailable on corrupted envelope without echoing passphrase.
+        await LoginAsAdmin();
+        using (var adminDetails = await Http.GetAsync($"/SigningKeys/Details/{key.Id:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, adminDetails.StatusCode);
+            var html = await adminDetails.Content.ReadAsStringAsync();
+            Assert.Contains("verify-passphrase-input", html, StringComparison.Ordinal);
+        }
+
+        const string probePassphrase = "corrupted-envelope-probe-987654";
+        using (var verifyCorrupted = await PostForm($"/SigningKeys/VerifyPassphrase/{key.Id:D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = probePassphrase
+        }, $"/SigningKeys/Details/{key.Id:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, verifyCorrupted.StatusCode);
+            var html = await verifyCorrupted.Content.ReadAsStringAsync();
+            Assert.Contains("Key ring mismatch.", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(probePassphrase, html, StringComparison.Ordinal);
+        }
+
+        using (var verifyMissing = await PostForm($"/SigningKeys/VerifyPassphrase/{Guid.NewGuid():D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = probePassphrase
+        }, $"/SigningKeys/Details/{key.Id:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.NotFound, verifyMissing.StatusCode);
+        }
     }
 
     [TestMethod]
@@ -150,17 +242,131 @@ public sealed class CompanySigningTests : TestBase
     }
 
     [TestMethod]
+    public async Task CreateVerifyPassphraseAndBrowserFileSigningWorkEndToEnd()
+    {
+        RequireLinuxCryptoRuntime();
+
+        const string passphrase = "argon2-ui-passphrase-验证口令-2026";
+        const string wrongPassphrase = "wrong-passphrase-should-never-echo";
+        await LoginAsAdmin();
+
+        // ConfirmPassphrase mismatch is rejected without creating a key or echoing passphrases.
+        using (var mismatched = await PostForm("/SigningKeys/Create", new Dictionary<string, string>
+        {
+            ["Name"] = "Mismatched key",
+            ["Passphrase"] = passphrase,
+            ["ConfirmPassphrase"] = wrongPassphrase
+        }))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, mismatched.StatusCode);
+            var html = await mismatched.Content.ReadAsStringAsync();
+            Assert.Contains("does not match", html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(passphrase, html, StringComparison.Ordinal);
+            Assert.DoesNotContain(wrongPassphrase, html, StringComparison.Ordinal);
+        }
+
+        // Valid create redirects to Details page with KeyCreated banner.
+        Guid keyId;
+        using (var created = await PostForm("/SigningKeys/Create", new Dictionary<string, string>
+        {
+            ["Name"] = "UI Verified Release Key",
+            ["Passphrase"] = passphrase,
+            ["ConfirmPassphrase"] = passphrase
+        }))
+        {
+            AssertRedirect(created, "/SigningKeys/Details/", exact: false);
+            var location = created.Headers.Location!.OriginalString;
+            var idSegment = location.Split('/', StringSplitOptions.RemoveEmptyEntries).Last();
+            Assert.IsTrue(Guid.TryParse(idSegment, out keyId), $"Expected GUID in redirect {location}");
+        }
+
+        using (var detailsAfterCreate = await Http.GetAsync($"/SigningKeys/Details/{keyId:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, detailsAfterCreate.StatusCode);
+            var html = await detailsAfterCreate.Content.ReadAsStringAsync();
+            Assert.Contains("Signing key created.", html, StringComparison.Ordinal);
+            Assert.Contains("UI Verified Release Key", html, StringComparison.Ordinal);
+        }
+
+        // Valid passphrase verification succeeds without echoing passphrase.
+        using (var validVerify = await PostForm($"/SigningKeys/VerifyPassphrase/{keyId:D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = passphrase
+        }, $"/SigningKeys/Details/{keyId:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, validVerify.StatusCode);
+            var html = await validVerify.Content.ReadAsStringAsync();
+            Assert.Contains("Passphrase verified.", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(passphrase, html, StringComparison.Ordinal);
+        }
+
+        // Invalid passphrase verification reports failure without echoing passphrase.
+        using (var invalidVerify = await PostForm($"/SigningKeys/VerifyPassphrase/{keyId:D}", new Dictionary<string, string>
+        {
+            ["Passphrase"] = wrongPassphrase
+        }, $"/SigningKeys/Details/{keyId:D}"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, invalidVerify.StatusCode);
+            var html = await invalidVerify.Content.ReadAsStringAsync();
+            Assert.Contains("Incorrect passphrase.", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(wrongPassphrase, html, StringComparison.Ordinal);
+        }
+
+        // Browser file signing endpoint produces a gpgv-valid detached signature.
+        using var files = new TestFiles();
+        var artifactBytes = RandomNumberGenerator.GetBytes(32 * 1024);
+        var artifactPath = Path.Combine(files.Path, "release.tar.gz");
+        var signaturePath = Path.Combine(files.Path, "release.tar.gz.sig");
+        var publicKeyPath = Path.Combine(files.Path, "pub.gpg");
+        await File.WriteAllBytesAsync(artifactPath, artifactBytes);
+
+        var csrfToken = await GetAntiCsrfToken($"/SigningKeys/Sign/{keyId:D}?mode=file");
+        using (var form = new MultipartFormDataContent())
+        {
+            form.Add(new StringContent(csrfToken), "__RequestVerificationToken");
+            form.Add(new StringContent(passphrase), "Passphrase");
+            form.Add(new ByteArrayContent(artifactBytes), "File", "release.tar.gz");
+            using var signed = await Http.PostAsync($"/SigningKeys/SignFile/{keyId:D}", form);
+            Assert.AreEqual(HttpStatusCode.OK, signed.StatusCode);
+            Assert.AreEqual("application/pgp-signature", signed.Content.Headers.ContentType!.MediaType);
+            Assert.AreEqual("release.tar.gz.sig", signed.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+            await File.WriteAllBytesAsync(signaturePath, await signed.Content.ReadAsByteArrayAsync());
+        }
+
+        var publicKeyBytes = await Http.GetByteArrayAsync($"/SigningKeys/PublicKey/{keyId:D}");
+        await File.WriteAllBytesAsync(publicKeyPath, publicKeyBytes);
+        Assert.AreEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, signaturePath, artifactPath));
+
+        // Wrong passphrase on SignFile returns error without echoing passphrase.
+        using (var wrongForm = new MultipartFormDataContent())
+        {
+            wrongForm.Add(new StringContent(csrfToken), "__RequestVerificationToken");
+            wrongForm.Add(new StringContent(wrongPassphrase), "Passphrase");
+            wrongForm.Add(new ByteArrayContent(artifactBytes), "File", "release.tar.gz");
+            using var wrongResult = await Http.PostAsync($"/SigningKeys/SignFile/{keyId:D}", wrongForm);
+            Assert.AreEqual(HttpStatusCode.OK, wrongResult.StatusCode);
+            var html = await wrongResult.Content.ReadAsStringAsync();
+            Assert.Contains("The key passphrase is incorrect.", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(wrongPassphrase, html, StringComparison.Ordinal);
+        }
+
+        // Empty file on SignFile returns validation error.
+        using (var emptyForm = new MultipartFormDataContent())
+        {
+            emptyForm.Add(new StringContent(csrfToken), "__RequestVerificationToken");
+            emptyForm.Add(new StringContent(passphrase), "Passphrase");
+            emptyForm.Add(new ByteArrayContent([]), "File", "empty.bin");
+            using var emptyResult = await Http.PostAsync($"/SigningKeys/SignFile/{keyId:D}", emptyForm);
+            Assert.AreEqual(HttpStatusCode.OK, emptyResult.StatusCode);
+            var html = await emptyResult.Content.ReadAsStringAsync();
+            Assert.Contains("Select a non-empty file to sign.", html, StringComparison.Ordinal);
+        }
+    }
+
+    [TestMethod]
     public async Task StreamingEndpointSignsOriginalFileBytesAndRequiresTheKeyPassphrase()
     {
-        var programs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
-        if (!OperatingSystem.IsLinux() ||
-            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpg"))) ||
-            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpgv"))) ||
-            !NativeLibrary.TryLoad("libargon2.so.1", typeof(CompanySigningTests).Assembly, null, out var library))
-            Assert.Inconclusive("End-to-end signing requires Linux, GnuPG, gpgv and libargon2.");
-        else
-            NativeLibrary.Free(library);
+        RequireLinuxCryptoRuntime();
 
         const string passphrase = "test recovery 密钥口令";
         using var files = new TestFiles();
@@ -193,6 +399,19 @@ public sealed class CompanySigningTests : TestBase
         var failure = await Assert.ThrowsExactlyAsync<AiurUnexpectedServerResponseException>(() =>
             sdk.SignFileAsync(token, keyId, "different password", contentPath));
         Assert.AreEqual(Code.WrongKey, failure.Response.Code);
+    }
+
+    private static void RequireLinuxCryptoRuntime()
+    {
+        var programs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        if (!OperatingSystem.IsLinux() ||
+            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpg"))) ||
+            !programs.Any(directory => File.Exists(Path.Combine(directory, "gpgv"))) ||
+            !NativeLibrary.TryLoad("libargon2.so.1", typeof(CompanySigningTests).Assembly, null, out var library))
+            Assert.Inconclusive("End-to-end signing requires Linux, GnuPG, gpgv and libargon2.");
+        else
+            NativeLibrary.Free(library);
     }
 
     private static async Task<int> VerifyWithGpg(string home, string publicKey, string signature, string data)

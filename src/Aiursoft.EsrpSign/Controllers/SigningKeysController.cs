@@ -18,6 +18,7 @@ namespace Aiursoft.EsrpSign.Controllers;
 public sealed class SigningKeysController(
     CompanySigningService signing,
     UserManager<User> users,
+    IAuthorizationService authorization,
     IStringLocalizer<SigningKeysController> localizer) : Controller
 {
     [HttpGet]
@@ -26,8 +27,62 @@ public sealed class SigningKeysController(
         NavGroupName = "Features", NavGroupOrder = 1,
         CascadedLinksGroupName = "Signing", CascadedLinksIcon = "key-round", CascadedLinksOrder = 2,
         LinkText = "Company Signing Keys", LinkOrder = 1)]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken) =>
-        this.StackView(new IndexViewModel { Keys = await signing.ListAsync(cancellationToken) });
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    {
+        var keys = await signing.ListAsync(cancellationToken);
+        return this.StackView(new IndexViewModel
+        {
+            Keys = keys,
+            CanCreate = await HasPermissionAsync(AppPermissionNames.CanCreateCompanySigningKeys),
+            CanSign = await HasPermissionAsync(AppPermissionNames.CanSignWithCompanyKeys)
+        });
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+    public async Task<IActionResult> Details(Guid id, CancellationToken cancellationToken)
+    {
+        var key = await signing.FindAsync(id, cancellationToken);
+        if (key is null)
+        {
+            return NotFound();
+        }
+
+        return this.StackView(await BuildDetailsModelAsync(key, keyCreated: TempData["KeyCreated"] is true));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = AppPermissionNames.CanSignWithCompanyKeys)]
+    [ValidateAntiForgeryToken]
+    [EnableRateLimiting(CompanySigningService.CryptoLimiter)]
+    [RequestSizeLimit(12 * 1024)]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+    public async Task<IActionResult> VerifyPassphrase(Guid id, VerifyPassphraseInputModel input,
+        CancellationToken cancellationToken)
+    {
+        var key = await signing.FindAsync(id, cancellationToken);
+        if (key is null)
+        {
+            return NotFound();
+        }
+
+        ValidatePassphrase(input.Passphrase);
+        var model = await BuildDetailsModelAsync(key);
+        if (!ModelState.IsValid)
+        {
+            return this.StackView(model, nameof(Details));
+        }
+
+        var outcome = await signing.VerifyPassphraseAsync(id, input.Passphrase, users.GetUserId(User)!, cancellationToken);
+        if (outcome == PassphraseVerificationOutcome.NotFound)
+        {
+            return NotFound();
+        }
+
+        model.VerificationOutcome = outcome;
+        return this.StackView(model, nameof(Details));
+    }
 
     [HttpGet]
     [AllowAnonymous]
@@ -53,19 +108,27 @@ public sealed class SigningKeysController(
         if (!ModelState.IsValid)
         {
             model.Passphrase = string.Empty;
+            model.ConfirmPassphrase = string.Empty;
             return this.StackView(model);
         }
 
-        await signing.CreateAsync(model.Name, model.Passphrase, users.GetUserId(User)!, cancellationToken);
-        return RedirectToAction(nameof(Index));
+        var created = await signing.CreateAsync(model.Name, model.Passphrase, users.GetUserId(User)!, cancellationToken);
+        TempData["KeyCreated"] = true;
+        return RedirectToAction(nameof(Details), new { id = created.Id });
     }
 
     [HttpGet]
     [Authorize(Policy = AppPermissionNames.CanSignWithCompanyKeys)]
-    public async Task<IActionResult> Sign(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Sign(Guid id, string? mode, CancellationToken cancellationToken)
     {
         var key = await signing.FindAsync(id, cancellationToken);
-        return key is null ? NotFound() : this.StackView(new SignViewModel { Key = key });
+        if (key is null)
+        {
+            return NotFound();
+        }
+
+        var normalizedMode = string.Equals(mode, "file", StringComparison.OrdinalIgnoreCase) ? "file" : "text";
+        return this.StackView(new SignViewModel { Key = key, Mode = normalizedMode });
     }
 
     [HttpPost]
@@ -77,6 +140,7 @@ public sealed class SigningKeysController(
     public async Task<IActionResult> Sign(Guid id, SignViewModel model, CancellationToken cancellationToken)
     {
         model.Key = await signing.FindAsync(id, cancellationToken);
+        model.Mode = "text";
         if (model.Key is null)
         {
             return NotFound();
@@ -88,6 +152,7 @@ public sealed class SigningKeysController(
         {
             ModelState.AddModelError(nameof(model.Text), localizer["Enter between 1 and 65,536 bytes of text."]);
         }
+
         if (!ModelState.IsValid)
         {
             model.Passphrase = string.Empty;
@@ -107,6 +172,69 @@ public sealed class SigningKeysController(
         }
     }
 
+    [HttpPost]
+    [Authorize(Policy = AppPermissionNames.CanSignWithCompanyKeys)]
+    [ValidateAntiForgeryToken]
+    [EnableRateLimiting(CompanySigningService.CryptoLimiter)]
+    [RequestSizeLimit(SignFileRequest.MaxRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = SignFileRequest.MaxRequestBytes)]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+    public async Task<IActionResult> SignFile(Guid id, SignFileInputModel input, CancellationToken cancellationToken)
+    {
+        var key = await signing.FindAsync(id, cancellationToken);
+        if (key is null)
+        {
+            return NotFound();
+        }
+
+        var model = new SignViewModel { Key = key, Mode = "file" };
+        ValidatePassphrase(input.Passphrase);
+        if (input.File is null || input.File.Length == 0)
+        {
+            ModelState.AddModelError(nameof(input.File), localizer["Select a non-empty file to sign."]);
+        }
+        else if (input.File.Length > SignFileRequest.MaxFileBytes)
+        {
+            ModelState.AddModelError(nameof(input.File), localizer["The file must not exceed 64 MiB."]);
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return this.StackView(model, nameof(Sign));
+        }
+
+        try
+        {
+            await using var stream = input.File!.OpenReadStream();
+            var signature = await signing.SignAsync(id, input.Passphrase, stream, users.GetUserId(User)!, cancellationToken);
+            if (signature is null)
+            {
+                return NotFound();
+            }
+
+            var downloadName = BuildSignatureFileName(input.File.FileName);
+            return File(signature, "application/pgp-signature", downloadName);
+        }
+        catch (AuthenticationTagMismatchException)
+        {
+            ModelState.AddModelError(nameof(input.Passphrase), localizer["The key passphrase is incorrect."]);
+            return this.StackView(model, nameof(Sign));
+        }
+    }
+
+    private async Task<DetailsViewModel> BuildDetailsModelAsync(SigningKeyDto key, bool keyCreated = false) =>
+        new()
+        {
+            Key = key,
+            CanSign = await HasPermissionAsync(AppPermissionNames.CanSignWithCompanyKeys),
+            KeyCreated = keyCreated,
+            PublicOrigin = $"{Request.Scheme}://{Request.Host}"
+        };
+
+    private async Task<bool> HasPermissionAsync(string policy) =>
+        User.Identity?.IsAuthenticated == true &&
+        (await authorization.AuthorizeAsync(User, policy)).Succeeded;
+
     private void ValidatePassphrase(string passphrase)
     {
         if (!PrivateKeys.IsValidPassphrase(passphrase))
@@ -114,5 +242,30 @@ public sealed class SigningKeysController(
             ModelState.AddModelError(nameof(CreateViewModel.Passphrase),
                 localizer["Use at least 12 characters and no more than 256 UTF-8 bytes."]);
         }
+    }
+
+    private static string BuildSignatureFileName(string originalFileName)
+    {
+        var baseName = Path.GetFileName(originalFileName);
+        if (string.IsNullOrWhiteSpace(baseName))
+        {
+            return "file.sig";
+        }
+
+        var safe = new StringBuilder(baseName.Length);
+        foreach (var ch in baseName)
+        {
+            if (char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_')
+            {
+                safe.Append(ch);
+            }
+            else
+            {
+                safe.Append('_');
+            }
+        }
+
+        var sanitized = safe.ToString().Trim('.');
+        return string.IsNullOrEmpty(sanitized) ? "file.sig" : $"{sanitized}.sig";
     }
 }

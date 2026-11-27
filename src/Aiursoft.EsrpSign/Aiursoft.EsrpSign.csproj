@@ -33,6 +33,9 @@
     <ProjectReference Include="..\Aiursoft.EsrpSign.Sqlite\Aiursoft.EsrpSign.Sqlite.csproj" />
     <ProjectReference Include="..\Aiursoft.EsrpSign.SDK\Aiursoft.EsrpSign.SDK.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="wwwroot/scripts/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
   <Target Name="PrepareFrontendResources" BeforeTargets="AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
     <!-- Docker supplies the slimmed assets from its Node build stage. -->
     <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)/wwwroot" Condition="'$(SkipFrontendBuild)' != 'true'" />

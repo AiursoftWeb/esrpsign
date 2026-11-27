@@ -1,9 +1,18 @@
 using System.Security.Cryptography;
+using System.Text;
 using Aiursoft.EsrpSign.Entities;
 using Aiursoft.EsrpSign.SDK.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aiursoft.EsrpSign.Services.Signing;
+
+public enum PassphraseVerificationOutcome
+{
+    NotFound,
+    Valid,
+    InvalidPassphrase,
+    KeyRingUnavailable
+}
 
 public sealed class CompanySigningService(
     TemplateDbContext db,
@@ -11,6 +20,28 @@ public sealed class CompanySigningService(
     ILogger<CompanySigningService> logger)
 {
     public const string CryptoLimiter = "CompanySigning";
+
+    public static string FormatFingerprint(string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return string.Empty;
+        }
+
+        var compact = fingerprint.Trim();
+        var builder = new StringBuilder(compact.Length + compact.Length / 4);
+        for (var i = 0; i < compact.Length; i++)
+        {
+            if (i > 0 && i % 4 == 0)
+            {
+                builder.Append(' ');
+            }
+
+            builder.Append(compact[i]);
+        }
+
+        return builder.ToString();
+    }
 
     public Task<List<SigningKeyDto>> ListAsync(CancellationToken cancellationToken) =>
         db.CompanySigningKeys.AsNoTracking()
@@ -51,6 +82,37 @@ public sealed class CompanySigningService(
         finally
         {
             CryptographicOperations.ZeroMemory(generated.PrivateKey);
+        }
+    }
+
+    public async Task<PassphraseVerificationOutcome> VerifyPassphraseAsync(Guid id, string passphrase, string userId,
+        CancellationToken cancellationToken)
+    {
+        var envelope = await db.CompanySigningKeys.AsNoTracking()
+            .Where(candidate => candidate.Id == id)
+            .Select(candidate => candidate.PrivateEnvelope)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (envelope is null)
+        {
+            return PassphraseVerificationOutcome.NotFound;
+        }
+
+        try
+        {
+            var privateKey = protection.Open(id, passphrase, envelope);
+            CryptographicOperations.ZeroMemory(privateKey);
+            logger.LogInformation("User {UserId} verified the passphrase for company key {SigningKeyId}: Valid.", userId, id);
+            return PassphraseVerificationOutcome.Valid;
+        }
+        catch (AuthenticationTagMismatchException)
+        {
+            logger.LogWarning("User {UserId} failed passphrase verification for company key {SigningKeyId}: InvalidPassphrase.", userId, id);
+            return PassphraseVerificationOutcome.InvalidPassphrase;
+        }
+        catch (CryptographicException)
+        {
+            logger.LogWarning("User {UserId} failed passphrase verification for company key {SigningKeyId}: KeyRingUnavailable.", userId, id);
+            return PassphraseVerificationOutcome.KeyRingUnavailable;
         }
     }
 

@@ -4,19 +4,76 @@
 
 <section class="container py-5">
     <div class="row align-items-center justify-content-center py-lg-5 text-center">
-        <div class="col-lg-8">
+        <div class="col-lg-9">
+            <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 mb-3">
+                <i class="align-middle me-1" data-lucide="shield-check" style="width:16px;height:16px;"></i>
+                @Localizer["OpenPGP Release Signing Service"]
+            </span>
             <h1 id="main-slogan" class="display-4 fw-bold">Aiursoft ESRP Sign</h1>
             <p class="lead text-muted my-4">
-                @Localizer["Sign releases with company OpenPGP keys. Download a public key to verify signed files."]
+                @Localizer["Sign company releases with OpenPGP keys protected by API key permissions, Argon2id passphrases, and Data Protection."]
             </p>
             <div class="d-flex flex-wrap justify-content-center gap-2">
                 <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-primary btn-lg">
-                    @Localizer["Browse Public Keys"]
+                    <i class="align-middle me-1" data-lucide="key-round" style="width:18px;height:18px;"></i>
+                    @Localizer["Browse Signing Keys"]
                 </a>
-                @if (User.Identity?.IsAuthenticated != true)
+                @if (User.Identity?.IsAuthenticated == true)
                 {
-                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">@Localizer["Sign In"]</a>
+                    <a asp-controller="Dashboard" asp-action="Index" class="btn btn-outline-primary btn-lg">
+                        <i class="align-middle me-1" data-lucide="layout-dashboard" style="width:18px;height:18px;"></i>
+                        @Localizer["Open Workspace"]
+                    </a>
                 }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary btn-lg">
+                        <i class="align-middle me-1" data-lucide="log-in" style="width:18px;height:18px;"></i>
+                        @Localizer["Sign In"]
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 pt-3 pb-4">
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary p-2 mb-3">
+                        <i data-lucide="download" style="width:22px;height:22px;"></i>
+                    </div>
+                    <h2 class="h5 fw-semibold">@Localizer["Public Verification"]</h2>
+                    <p class="text-muted mb-0">
+                        @Localizer["Anyone can inspect company signing key fingerprints and download OpenPGP public keys to verify release files offline."]
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-3 bg-success-subtle text-success p-2 mb-3">
+                        <i data-lucide="lock" style="width:22px;height:22px;"></i>
+                    </div>
+                    <h2 class="h5 fw-semibold">@Localizer["Three-Layer Protection"]</h2>
+                    <p class="text-muted mb-0">
+                        @Localizer["Private keys stay encrypted at rest with your per-key Argon2id passphrase (AES-256-GCM) and ASP.NET Core Data Protection."]
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-3 bg-info-subtle text-info p-2 mb-3">
+                        <i data-lucide="file-signature" style="width:22px;height:22px;"></i>
+                    </div>
+                    <h2 class="h5 fw-semibold">@Localizer["CI & Browser Signing"]</h2>
+                    <p class="text-muted mb-0">
+                        @Localizer["Sign release artifacts up to 64 MiB from GitLab CI with a personal API key, or test passphrases and sign directly in the browser."]
+                    </p>
+                </div>
             </div>
         </div>
     </div>

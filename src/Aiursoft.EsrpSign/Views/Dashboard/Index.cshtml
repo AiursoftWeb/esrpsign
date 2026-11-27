@@ -1,26 +1,219 @@
+@using Aiursoft.EsrpSign.Services.Signing
+@using Aiursoft.WebTools
 @model Aiursoft.EsrpSign.Models.DashboardViewModels.IndexViewModel
+@{
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+}
 
-<h1 class="h3 mb-3">Aiursoft ESRP Sign</h1>
-<div class="row">
-    <div class="col-lg-6">
-        <div class="card">
+<div id="esrp-loc-data" hidden data-copied="@Localizer["Copied"]"></div>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Aiursoft ESRP Sign</h1>
+        <p class="text-muted mb-0">@Localizer["Manage company OpenPGP signing keys, verify passphrases, and issue CI API keys."]</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        @if (Model.CanCreateKeys)
+        {
+            <a asp-controller="SigningKeys" asp-action="Create" class="btn btn-primary">
+                <i class="align-middle me-1" data-lucide="plus" style="width:16px;height:16px;"></i>
+                @Localizer["Create Signing Key"]
+            </a>
+        }
+        <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-outline-primary">
+            <i class="align-middle me-1" data-lucide="key-round" style="width:16px;height:16px;"></i>
+            @Localizer["All Signing Keys"]
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
             <div class="card-body">
-                <h2 class="h4">@Localizer["Company Signing Keys"]</h2>
-                <p>@Localizer["Browse company keys and download public keys to verify releases."]</p>
-                <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-primary">@Localizer["View Keys"]</a>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-semibold small text-uppercase">@Localizer["Company Signing Keys"]</span>
+                    <i class="text-primary" data-lucide="key-round" style="width:20px;height:20px;"></i>
+                </div>
+                <div class="display-6 fw-bold mb-2">@Model.TotalSigningKeys</div>
+                <p class="text-muted small mb-3">@Localizer["Public keys are downloadable by anyone for offline signature verification."]</p>
+                <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-sm btn-outline-primary">
+                    @Localizer["Browse Keys"]
+                </a>
             </div>
         </div>
     </div>
-    @if (User.Identity?.IsAuthenticated == true)
-    {
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="h4">@Localizer["Personal API Keys"]</h2>
-                    <p>@Localizer["Use a personal API key to authenticate signing jobs with your current permissions."]</p>
-                    <a asp-controller="ApiKeys" asp-action="Index" class="btn btn-outline-primary">@Localizer["Manage API Keys"]</a>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-semibold small text-uppercase">@Localizer["Your Signing Access"]</span>
+                    <i class="text-success" data-lucide="shield-check" style="width:20px;height:20px;"></i>
                 </div>
+                <div class="d-flex flex-wrap gap-2 my-3">
+                    @if (!isAuthenticated)
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary fs-6 fw-normal px-2 py-1">@Localizer["Public Verification Only"]</span>
+                    }
+                    else
+                    {
+                        @if (Model.CanCreateKeys)
+                        {
+                            <span class="badge bg-primary-subtle text-primary px-2 py-1">@Localizer["Can Create Keys"]</span>
+                        }
+                        @if (Model.CanSignKeys)
+                        {
+                            <span class="badge bg-success-subtle text-success px-2 py-1">@Localizer["Can Sign & Verify Passphrases"]</span>
+                        }
+                        @if (!Model.CanCreateKeys && !Model.CanSignKeys)
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary px-2 py-1">@Localizer["Read-Only Public Access"]</span>
+                        }
+                    }
+                </div>
+                @if (!isAuthenticated)
+                {
+                    <p class="text-muted small mb-3">@Localizer["Sign in to view your permissions, test passphrases, or manage personal API keys."]</p>
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-primary">@Localizer["Sign In"]</a>
+                }
+                else
+                {
+                    <p class="text-muted small mb-0">@Localizer["Personal API keys inherit your live role permissions on every signing request."]</p>
+                }
             </div>
         </div>
-    }
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-semibold small text-uppercase">@Localizer["Personal API Keys"]</span>
+                    <i class="text-info" data-lucide="terminal" style="width:20px;height:20px;"></i>
+                </div>
+                @if (isAuthenticated)
+                {
+                    <div class="display-6 fw-bold mb-2">@Model.ActiveApiKeys</div>
+                    <p class="text-muted small mb-3">@Localizer["Active Bearer tokens bound to your account for CI pipelines and SDK clients."]</p>
+                    <a asp-controller="ApiKeys" asp-action="Index" class="btn btn-sm btn-outline-primary">
+                        @Localizer["Manage API Keys"]
+                    </a>
+                }
+                else
+                {
+                    <p class="text-muted small mt-3 mb-3">@Localizer["Sign in to create personal API keys for automated CI release signing."]</p>
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-primary">@Localizer["Sign In"]</a>
+                }
+            </div>
+        </div>
+    </div>
 </div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h2 class="card-title mb-0">@Localizer["Company Signing Keys"]</h2>
+                <a asp-controller="SigningKeys" asp-action="Index" class="btn btn-sm btn-link text-decoration-none">
+                    @Localizer["View All"]
+                </a>
+            </div>
+            @if (Model.RecentKeys.Count == 0)
+            {
+                <div class="card-body text-center py-5 text-muted">
+                    <i class="mb-2" data-lucide="key-round" style="width:32px;height:32px;"></i>
+                    <p class="mb-3">@Localizer["No company signing keys have been created yet."]</p>
+                    @if (Model.CanCreateKeys)
+                    {
+                        <a asp-controller="SigningKeys" asp-action="Create" class="btn btn-primary btn-sm">
+                            @Localizer["Create First Signing Key"]
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="list-group list-group-flush">
+                    @foreach (var key in Model.RecentKeys)
+                    {
+                        <div class="list-group-item py-3">
+                            <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                        <a asp-controller="SigningKeys" asp-action="Details" asp-route-id="@key.Id" class="fw-semibold text-decoration-none fs-5">
+                                            @key.Name
+                                        </a>
+                                        <span class="badge bg-light text-dark border">OpenPGP</span>
+                                    </div>
+                                    <div class="small text-muted mb-1">
+                                        <span>@Localizer["Key ID:"]</span>
+                                        <code class="text-break">@key.Id.ToString("D")</code>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1"
+                                                data-copy-value="@key.Id.ToString("D")" data-restore-class="btn-outline-secondary">
+                                            <span data-copy-label>@Localizer["Copy"]</span>
+                                        </button>
+                                    </div>
+                                    <div class="small text-muted">
+                                        <span>@Localizer["Fingerprint:"]</span>
+                                        <code class="text-break">@CompanySigningService.FormatFingerprint(key.Fingerprint)</code>
+                                        <span class="ms-2">·</span>
+                                        <label data-utc-time="@key.CreatedAt.ToHtmlDateTime()" class="mb-0 ms-1"></label>
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <a asp-controller="SigningKeys" asp-action="Details" asp-route-id="@key.Id" class="btn btn-sm btn-outline-secondary">
+                                        @Localizer["Details"]
+                                    </a>
+                                    @if (Model.CanSignKeys)
+                                    {
+                                        <a asp-controller="SigningKeys" asp-action="Details" asp-route-id="@key.Id" asp-fragment="verify-passphrase" class="btn btn-sm btn-outline-success">
+                                            @Localizer["Test Passphrase"]
+                                        </a>
+                                        <a asp-controller="SigningKeys" asp-action="Sign" asp-route-id="@key.Id" class="btn btn-sm btn-primary">
+                                            @Localizer["Sign"]
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h2 class="card-title mb-0">@Localizer["Quick Setup for CI"]</h2>
+            </div>
+            <div class="card-body">
+                <ol class="ps-3 mb-3">
+                    <li class="mb-2">
+                        <strong>@Localizer["Choose or create a signing key"]</strong>
+                        <div class="text-muted small">@Localizer["Copy its Key ID for ESRP_SIGNING_KEY_ID and store its Argon2id passphrase safely."]</div>
+                    </li>
+                    <li class="mb-2">
+                        <strong>@Localizer["Test the passphrase"]</strong>
+                        <div class="text-muted small">@Localizer["Open the key's details page to verify your passphrase unlocks the private key before configuring CI."]</div>
+                    </li>
+                    <li class="mb-0">
+                        <strong>@Localizer["Create a personal API key"]</strong>
+                        <div class="text-muted small">@Localizer["Issue a Bearer key for ESRP_API_KEY using an account with signing permission."]</div>
+                    </li>
+                </ol>
+                @if (isAuthenticated)
+                {
+                    <a asp-controller="ApiKeys" asp-action="Create" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="align-middle me-1" data-lucide="plus" style="width:14px;height:14px;"></i>
+                        @Localizer["Create Personal API Key"]
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ReSharper disable once Razor.SectionNotResolved *@
+@section scripts {
+    <script src="~/scripts/esrp-ui.js" asp-append-version="true"></script>
+}
