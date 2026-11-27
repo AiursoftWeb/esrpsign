@@ -129,10 +129,10 @@ Create a personal API key from **Settings → API Keys** and copy it when it is 
 | `GET /api/v1/signing-keys` | Public | Key ID, name, fingerprint and creation time |
 | `GET /api/v1/signing-keys/{id}/public-key` | Public | Base64-encoded public key in the AiurProtocol response |
 | `POST /api/v1/signing-keys` | Personal API Key and create permission | JSON with `name` and `passphrase` |
-| `POST /api/v1/signing-keys/{id}/sign` | Personal API Key and sign permission | JSON with `passphrase` and Base64 `data`; returns a Base64 OpenPGP detached signature |
-| `POST /api/v1/signing-keys/{id}/sign-file` | Personal API Key and sign permission | Streamed `multipart/mixed`: UTF-8 passphrase first (`text/plain`), then the original binary file (`application/octet-stream`); returns the same AiurProtocol response |
+| `POST /api/v1/signing-keys/{id}/sign` | Personal API Key and sign permission | JSON with `passphrase`, Base64 `data`, and optional `format` (`DetachedBinary`, `DetachedArmored`, or `ClearSigned`); returns a Base64 OpenPGP signature |
+| `POST /api/v1/signing-keys/{id}/sign-file` | Personal API Key and sign permission | Streamed `multipart/mixed`: UTF-8 passphrase first (`text/plain`), then the original binary file (`application/octet-stream`), with optional query `?format=DetachedBinary|DetachedArmored|ClearSigned`; returns the same AiurProtocol response |
 
-Use the JSON endpoint for inputs up to 64 KiB, such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. For a file up to 64 MiB, use `EsrpSignApiClient.SignFileAsync(apiKey, keyId, passphrase, filePath, cancellationToken)`. Save the returned `Signature` as the detached `.sig` file and verify it against the original file with the corresponding public key.
+Use the JSON endpoint for inputs up to 64 KiB, such as `SHA256SUMS`. Browser text uses UTF-8 with LF line endings. For a file up to 64 MiB, use `EsrpSignApiClient.SignFileAsync(apiKey, keyId, passphrase, filePath, cancellationToken)` (or pass a `SignatureFormat` such as `DetachedArmored` for `.asc`/`.gpg` or `ClearSigned` for APT `InRelease`). Save the returned `Signature` and verify it against the original file with the corresponding public key.
 
 ## Configuration
 

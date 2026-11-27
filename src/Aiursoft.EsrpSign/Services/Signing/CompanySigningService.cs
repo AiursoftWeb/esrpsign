@@ -117,14 +117,14 @@ public sealed class CompanySigningService(
     }
 
     public async Task<byte[]?> SignAsync(Guid id, string passphrase, byte[] data, string userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, SignatureFormat format = SignatureFormat.DetachedBinary)
     {
         using var input = new MemoryStream(data, writable: false);
-        return await SignAsync(id, passphrase, input, userId, cancellationToken);
+        return await SignAsync(id, passphrase, input, userId, cancellationToken, format);
     }
 
     public async Task<byte[]?> SignAsync(Guid id, string passphrase, Stream data, string userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, SignatureFormat format = SignatureFormat.DetachedBinary)
     {
         var key = await db.CompanySigningKeys.AsNoTracking()
             .Where(candidate => candidate.Id == id)
@@ -138,8 +138,9 @@ public sealed class CompanySigningService(
         var privateKey = protection.Open(id, passphrase, key.PrivateEnvelope);
         try
         {
-            var signature = await OpenPgp.Sign(key.Fingerprint, privateKey, data, cancellationToken);
-            logger.LogInformation("User {UserId} signed with company key {SigningKeyId}.", userId, id);
+            var signature = await OpenPgp.Sign(key.Fingerprint, privateKey, data, format, cancellationToken);
+            logger.LogInformation("User {UserId} signed with company key {SigningKeyId} using {SignatureFormat}.",
+                userId, id, format);
             return signature;
         }
         finally

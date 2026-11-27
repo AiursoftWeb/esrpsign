@@ -22,8 +22,8 @@ public sealed class EsrpSignApiClient(AiurProtocolClient http, IOptions<EsrpSign
         Timeout = TimeSpan.FromMinutes(4)
     };
 
-    private AiurApiEndpoint Endpoint(string resource = "") => new(
-        options.Value.Endpoint.TrimEnd('/'), "/api/v1/signing-keys" + resource, new { });
+    private AiurApiEndpoint Endpoint(string resource = "", object? param = null) => new(
+        options.Value.Endpoint.TrimEnd('/'), "/api/v1/signing-keys" + resource, param ?? new { });
 
     public Task<AiurCollection<SigningKeyDto>> ListKeysAsync() =>
         http.Get<AiurCollection<SigningKeyDto>>(Endpoint());
@@ -39,17 +39,24 @@ public sealed class EsrpSignApiClient(AiurProtocolClient http, IOptions<EsrpSign
         http.Post<SignResponse>(Endpoint($"/{id:D}/sign"), new AiurApiPayload(request),
             BodyFormat.HttpJsonBody, autoRetry: false, headers: AuthorizationHeaders(apiKey));
 
+    public Task<SignResponse> SignFileAsync(string apiKey, Guid id, string passphrase, string filePath,
+        CancellationToken cancellationToken = default) =>
+        SignFileAsync(apiKey, id, passphrase, filePath, SignatureFormat.DetachedBinary, cancellationToken);
+
     public async Task<SignResponse> SignFileAsync(string apiKey, Guid id, string passphrase, string filePath,
-        CancellationToken cancellationToken = default)
+        SignatureFormat format, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(passphrase);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (!Enum.IsDefined(format))
+            throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported signature format.");
         if (passphrase.Length < 12 || Encoding.UTF8.GetByteCount(passphrase) > SignFileRequest.MaxPassphraseBytes)
             throw new ArgumentException("Provide a passphrase of at least 12 characters and at most 256 UTF-8 bytes.",
                 nameof(passphrase));
 
-        var uri = new Uri(Endpoint($"/{id:D}/sign-file").ToString());
+        var uri = new Uri(Endpoint($"/{id:D}/sign-file",
+            format == SignatureFormat.DetachedBinary ? null : new { format = format.ToString() }).ToString());
         if (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback))
             throw new InvalidOperationException("File signing requires an HTTPS endpoint.");
 

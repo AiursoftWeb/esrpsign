@@ -221,9 +221,10 @@ public sealed class CompanySigningTests : TestBase
     }
 
     [TestMethod]
-    public async Task FileSigningRejectsUnauthenticatedAndOversizedRequests()
+    public async Task FileSigningRejectsUnauthenticatedOversizedAndInvalidFormatRequests()
     {
-        var path = $"{ApiPath}/{Guid.NewGuid():D}/sign-file";
+        var keyId = Guid.NewGuid();
+        var path = $"{ApiPath}/{keyId:D}/sign-file";
         using var anonymousBody = new MultipartContent("mixed");
         using var anonymous = await Http.PostAsync(path, anonymousBody);
         Assert.AreEqual(HttpStatusCode.Unauthorized, anonymous.StatusCode);
@@ -239,6 +240,43 @@ public sealed class CompanySigningTests : TestBase
         excessive.Content.Headers.ContentLength = SignFileRequest.MaxRequestBytes + 1L;
         using var oversized = await Http.SendAsync(excessive);
         Assert.AreEqual(HttpStatusCode.RequestEntityTooLarge, oversized.StatusCode);
+
+        Http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using (var invalidJsonFormat = await Http.PostAsJsonAsync($"{ApiPath}/{keyId:D}/sign",
+                   new SignRequest { Passphrase = "long test password", Data = [1], Format = (SignatureFormat)99 }))
+        {
+            Assert.AreEqual(HttpStatusCode.BadRequest, invalidJsonFormat.StatusCode);
+        }
+
+        foreach (var badQuery in new[] { "invalid", "99" })
+        {
+            using var invalidFileReq = new HttpRequestMessage(HttpMethod.Post, $"{path}?format={badQuery}");
+            var upload = new MultipartContent("mixed");
+            upload.Add(new StringContent("long test password", Encoding.UTF8, "text/plain"));
+            var filePart = new ByteArrayContent([1, 2, 3]);
+            filePart.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            upload.Add(filePart);
+            invalidFileReq.Content = upload;
+            using var invalidFileResp = await Http.SendAsync(invalidFileReq);
+            Assert.AreEqual(HttpStatusCode.BadRequest, invalidFileResp.StatusCode);
+        }
+
+        // Verify SDK query-string serialization for valid formats reaches the server and hits key lookup.
+        using var files = new TestFiles();
+        var probePath = Path.Combine(files.Path, "probe.txt");
+        await File.WriteAllTextAsync(probePath, "probe");
+        using var services = new ServiceCollection().AddLogging()
+            .AddEsrpSignSdk(Http.BaseAddress!.ToString()).BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        var sdk = scope.ServiceProvider.GetRequiredService<EsrpSignApiClient>();
+        foreach (var format in new[] { SignatureFormat.DetachedBinary, SignatureFormat.DetachedArmored, SignatureFormat.ClearSigned })
+        {
+            var notFound = await Assert.ThrowsExactlyAsync<AiurUnexpectedServerResponseException>(() =>
+                sdk.SignFileAsync(token, keyId, "long test password", probePath, format));
+            Assert.AreEqual(Code.NotFound, notFound.Response.Code);
+        }
+        await Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() =>
+            sdk.SignFileAsync(token, keyId, "long test password", probePath, (SignatureFormat)99));
     }
 
     [TestMethod]
@@ -401,6 +439,77 @@ public sealed class CompanySigningTests : TestBase
         Assert.AreEqual(Code.WrongKey, failure.Response.Code);
     }
 
+    [TestMethod]
+    public async Task SigningEndpointsSupportDetachedArmoredAndClearSignedFormats()
+    {
+        RequireLinuxCryptoRuntime();
+
+        const string passphrase = "test armored clearsign 密钥口令";
+        const string releaseText = "Origin: AnduinOS\nSuite: noble\nCodename: noble\nArchitectures: amd64\n";
+        var releaseBytes = Encoding.UTF8.GetBytes(releaseText);
+        using var files = new TestFiles();
+        var releasePath = Path.Combine(files.Path, "Release");
+        var publicKeyPath = Path.Combine(files.Path, "offline.gpg");
+        await File.WriteAllBytesAsync(releasePath, releaseBytes);
+
+        using var services = new ServiceCollection().AddLogging()
+            .AddEsrpSignSdk(Http.BaseAddress!.ToString()).BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        var sdk = scope.ServiceProvider.GetRequiredService<EsrpSignApiClient>();
+
+        await LoginAsAdmin();
+        var token = await IssueApiKey();
+        var created = await sdk.CreateKeyAsync(token,
+            new CreateSigningKeyRequest { Name = "Offline bundle testing", Passphrase = passphrase });
+        var keyId = created.Key.Id;
+        await File.WriteAllBytesAsync(publicKeyPath, (await sdk.GetPublicKeyAsync(keyId)).PublicKey);
+
+        // DetachedArmored via SignFileAsync (e.g., manifest.asc / Release.gpg).
+        var armoredFile = await sdk.SignFileAsync(token, keyId, passphrase, releasePath, SignatureFormat.DetachedArmored);
+        Assert.AreEqual(Code.JobDone, armoredFile.Code);
+        Assert.Contains("-----BEGIN PGP SIGNATURE-----", Encoding.UTF8.GetString(armoredFile.Signature), StringComparison.Ordinal);
+        var armoredPath = Path.Combine(files.Path, "Release.gpg");
+        await File.WriteAllBytesAsync(armoredPath, armoredFile.Signature);
+        Assert.AreEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, armoredPath, releasePath));
+
+        // ClearSigned via SignFileAsync (e.g., APT InRelease).
+        var clearFile = await sdk.SignFileAsync(token, keyId, passphrase, releasePath, SignatureFormat.ClearSigned);
+        Assert.AreEqual(Code.JobDone, clearFile.Code);
+        var clearText = Encoding.UTF8.GetString(clearFile.Signature);
+        Assert.Contains("-----BEGIN PGP SIGNED MESSAGE-----", clearText, StringComparison.Ordinal);
+        Assert.Contains("Hash: SHA256", clearText, StringComparison.Ordinal);
+        var inReleasePath = Path.Combine(files.Path, "InRelease");
+        var recoveredPath = Path.Combine(files.Path, "InRelease.verified");
+        await File.WriteAllBytesAsync(inReleasePath, clearFile.Signature);
+        Assert.AreEqual(0, await VerifyClearSignedWithGpg(files.Path, publicKeyPath, inReleasePath, recoveredPath));
+        Assert.AreEqual(releaseText, await File.ReadAllTextAsync(recoveredPath));
+
+        // JSON SignAsync with DetachedArmored and ClearSigned.
+        var armoredJson = await sdk.SignAsync(token, keyId, new SignRequest
+        {
+            Passphrase = passphrase,
+            Data = releaseBytes,
+            Format = SignatureFormat.DetachedArmored
+        });
+        Assert.AreEqual(Code.JobDone, armoredJson.Code);
+        var armoredJsonPath = Path.Combine(files.Path, "Release.json.gpg");
+        await File.WriteAllBytesAsync(armoredJsonPath, armoredJson.Signature);
+        Assert.AreEqual(0, await VerifyWithGpg(files.Path, publicKeyPath, armoredJsonPath, releasePath));
+
+        var clearJson = await sdk.SignAsync(token, keyId, new SignRequest
+        {
+            Passphrase = passphrase,
+            Data = releaseBytes,
+            Format = SignatureFormat.ClearSigned
+        });
+        Assert.AreEqual(Code.JobDone, clearJson.Code);
+        var clearJsonPath = Path.Combine(files.Path, "InRelease.json");
+        var recoveredJsonPath = Path.Combine(files.Path, "InRelease.json.verified");
+        await File.WriteAllBytesAsync(clearJsonPath, clearJson.Signature);
+        Assert.AreEqual(0, await VerifyClearSignedWithGpg(files.Path, publicKeyPath, clearJsonPath, recoveredJsonPath));
+        Assert.AreEqual(releaseText, await File.ReadAllTextAsync(recoveredJsonPath));
+    }
+
     private static void RequireLinuxCryptoRuntime()
     {
         var programs = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
@@ -419,6 +528,17 @@ public sealed class CompanySigningTests : TestBase
         using var verifier = Process.Start(new ProcessStartInfo("gpgv")
         {
             ArgumentList = { "--homedir", home, "--keyring", publicKey, signature, data },
+            UseShellExecute = false
+        })!;
+        await verifier.WaitForExitAsync();
+        return verifier.ExitCode;
+    }
+
+    private static async Task<int> VerifyClearSignedWithGpg(string home, string publicKey, string signedFile, string outputFile)
+    {
+        using var verifier = Process.Start(new ProcessStartInfo("gpgv")
+        {
+            ArgumentList = { "--homedir", home, "--keyring", publicKey, "--output", outputFile, signedFile },
             UseShellExecute = false
         })!;
         await verifier.WaitForExitAsync();
