@@ -1,0 +1,313 @@
+@using Aiursoft.EsrpSign.Services.Signing
+@using Aiursoft.WebTools
+@model Aiursoft.EsrpSign.Models.SigningKeysViewModels.DetailsViewModel
+@{
+    var key = Model.Key;
+    var keyId = key.Id.ToString("D");
+    var formattedFingerprint = CompanySigningService.FormatFingerprint(key.Fingerprint);
+    var publicKeyDownloadUrl = $"{Model.PublicOrigin}/SigningKeys/PublicKey/{keyId}";
+    var publicKeyApiUrl = $"{Model.PublicOrigin}/api/v1/signing-keys/{keyId}/public-key";
+    var verifyCommand = $"gpgv --keyring esrpsign-{keyId}.gpg artifact.sig artifact";
+}
+
+<div id="esrp-loc-data" hidden
+     data-copied="@Localizer["Copied"]"
+     data-show-passphrase="@Localizer["Show passphrase"]"
+     data-hide-passphrase="@Localizer["Hide passphrase"]"></div>
+
+<div class="mb-3">
+    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">
+        <i class="align-middle me-1" data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        @Localizer["Back to Signing Keys"]
+    </a>
+</div>
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+    <div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <h1 class="h3 mb-0">@key.Name</h1>
+            <span class="badge bg-success-subtle text-success">
+                <i class="align-middle me-1" data-lucide="shield-check" style="width:14px;height:14px;"></i>
+                @Localizer["OpenPGP · Argon2id + Data Protection"]
+            </span>
+        </div>
+        <p class="text-muted mb-0">
+            @Localizer["Created"] <label data-utc-time="@key.CreatedAt.ToHtmlDateTime()" class="mb-0"></label>
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="PublicKey" asp-route-id="@key.Id" class="btn btn-outline-primary">
+            <i class="align-middle me-1" data-lucide="download" style="width:16px;height:16px;"></i>
+            @Localizer["Download Public Key (.gpg)"]
+        </a>
+        @if (Model.CanSign)
+        {
+            <a asp-action="Sign" asp-route-id="@key.Id" class="btn btn-primary">
+                <i class="align-middle me-1" data-lucide="file-signature" style="width:16px;height:16px;"></i>
+                @Localizer["Sign Text or File"]
+            </a>
+        }
+    </div>
+</div>
+
+@if (Model.KeyCreated)
+{
+    <div class="alert alert-success mb-4" role="alert">
+        <div class="alert-icon">
+            <i class="align-middle" data-lucide="check-circle-2"></i>
+        </div>
+        <div class="alert-message">
+            <strong>@Localizer["Signing key created."]</strong>
+            @Localizer["Save the Key ID below and run a quick passphrase test on the right to confirm your password manager entry."]
+        </div>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title mb-0">@Localizer["Key Identity & Public Verification"]</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fw-semibold mb-0">@Localizer["Key ID (ESRP_SIGNING_KEY_ID)"]</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@keyId" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="text-break">@keyId</code>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fw-semibold mb-0">@Localizer["OpenPGP Fingerprint"]</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@key.Fingerprint" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="text-break">@formattedFingerprint</code>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fw-semibold mb-0">@Localizer["Public Key Download URL"]</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@publicKeyDownloadUrl" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@publicKeyDownloadUrl</code>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fw-semibold mb-0">@Localizer["Public Key API Endpoint"]</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@publicKeyApiUrl" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@publicKeyApiUrl</code>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label fw-semibold mb-0">@Localizer["Verify a Signature with GnuPG"]</label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@verifyCommand" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@verifyCommand</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h2 class="card-title mb-0">@Localizer["CI Environment Variables"]</h2>
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <a asp-controller="ApiKeys" asp-action="Index" class="btn btn-sm btn-outline-primary">
+                        @Localizer["Manage API Keys"]
+                    </a>
+                }
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    @Localizer["Configure these three variables in your CI runner or deployment secrets to sign artifacts with this key."]
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">@Localizer["Variable"]</th>
+                                <th scope="col">@Localizer["Value"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>ESRP_SIGNING_KEY_ID</code></td>
+                                <td><code class="text-break">@keyId</code></td>
+                            </tr>
+                            <tr>
+                                <td><code>ESRP_API_KEY</code></td>
+                                <td class="text-muted small">@Localizer["Personal Bearer API key from an account with signing permission"]</td>
+                            </tr>
+                            <tr>
+                                <td><code>ESRP_SIGNING_KEY_PASSPHRASE</code></td>
+                                <td class="text-muted small">@Localizer["The Argon2id passphrase set when creating this key"]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4 border-primary-subtle" id="verify-passphrase">
+            <div class="card-header">
+                <h2 class="card-title mb-0">
+                    <i class="align-middle me-1 text-primary" data-lucide="key-square" style="width:18px;height:18px;"></i>
+                    @Localizer["Test Key Passphrase (Argon2)"]
+                </h2>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    @Localizer["Verify that your passphrase unlocks this key's Data Protection and Argon2id AES-256-GCM envelope. No signature is generated and the passphrase is never stored or logged."]
+                </p>
+
+                @if (Model.VerificationOutcome == PassphraseVerificationOutcome.Valid)
+                {
+                    <div class="alert alert-success" role="alert">
+                        <div class="alert-icon">
+                            <i class="align-middle" data-lucide="check-circle-2"></i>
+                        </div>
+                        <div class="alert-message">
+                            <strong>@Localizer["Passphrase verified."]</strong>
+                            @Localizer["The Argon2id key successfully unlocked this private key."]
+                        </div>
+                    </div>
+                }
+                else if (Model.VerificationOutcome == PassphraseVerificationOutcome.InvalidPassphrase)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <div class="alert-icon">
+                            <i class="align-middle" data-lucide="x-circle"></i>
+                        </div>
+                        <div class="alert-message">
+                            <strong>@Localizer["Incorrect passphrase."]</strong>
+                            @Localizer["The private key could not be unlocked with the passphrase you entered."]
+                        </div>
+                    </div>
+                }
+                else if (Model.VerificationOutcome == PassphraseVerificationOutcome.KeyRingUnavailable)
+                {
+                    <div class="alert alert-warning" role="alert">
+                        <div class="alert-icon">
+                            <i class="align-middle" data-lucide="alert-triangle"></i>
+                        </div>
+                        <div class="alert-message">
+                            <strong>@Localizer["Key ring mismatch."]</strong>
+                            @Localizer["This server's Data Protection key ring could not unwrap the stored private key envelope."]
+                        </div>
+                    </div>
+                }
+
+                @if (Model.CanSign)
+                {
+                    <form asp-action="VerifyPassphrase" asp-route-id="@key.Id" asp-fragment="verify-passphrase" method="post" autocomplete="off">
+                        <div class="mb-3">
+                            <label for="verify-passphrase-input" class="form-label">@Localizer["Argon2 Key Passphrase"]</label>
+                            <div class="input-group">
+                                <input id="verify-passphrase-input" name="Passphrase" type="password" value=""
+                                       autocomplete="off" minlength="12" maxlength="256" class="form-control"
+                                       placeholder="@Localizer["Enter passphrase to test"]" required />
+                                <button type="button" class="btn btn-outline-secondary"
+                                        data-toggle-password="verify-passphrase-input"
+                                        aria-label="@Localizer["Show passphrase"]" aria-pressed="false">
+                                    <span data-icon-show><i class="align-middle" data-lucide="eye" style="width:16px;height:16px;"></i></span>
+                                    <span data-icon-hide class="d-none"><i class="align-middle" data-lucide="eye-off" style="width:16px;height:16px;"></i></span>
+                                </button>
+                            </div>
+                            <span asp-validation-for="Passphrase" class="text-danger small"></span>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="align-middle me-1" data-lucide="shield-check" style="width:16px;height:16px;"></i>
+                            @Localizer["Test Passphrase"]
+                        </button>
+                    </form>
+                }
+                else if (User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="alert alert-info mb-0" role="alert">
+                        <div class="alert-icon">
+                            <i class="align-middle" data-lucide="info"></i>
+                        </div>
+                        <div class="alert-message">
+                            @Localizer["Your account does not have permission to sign with or verify company private keys."]
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info mb-3" role="alert">
+                        <div class="alert-icon">
+                            <i class="align-middle" data-lucide="lock"></i>
+                        </div>
+                        <div class="alert-message">
+                            @Localizer["Sign in with an authorized account to test passphrases or sign releases."]
+                        </div>
+                    </div>
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary w-100">
+                        @Localizer["Sign In"]
+                    </a>
+                }
+            </div>
+        </div>
+
+        @if (Model.CanSign)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title mb-0">@Localizer["Sign with This Key"]</h2>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        @Localizer["Generate a detached OpenPGP signature (.sig) directly in your browser."]
+                    </p>
+                    <div class="d-grid gap-2">
+                        <a asp-action="Sign" asp-route-id="@key.Id" asp-route-mode="text" class="btn btn-primary">
+                            <i class="align-middle me-1" data-lucide="file-text" style="width:16px;height:16px;"></i>
+                            @Localizer["Sign Text (up to 64 KiB)"]
+                        </a>
+                        <a asp-action="Sign" asp-route-id="@key.Id" asp-route-mode="file" class="btn btn-outline-primary">
+                            <i class="align-middle me-1" data-lucide="upload" style="width:16px;height:16px;"></i>
+                            @Localizer["Sign File (up to 64 MiB)"]
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@* ReSharper disable once Razor.SectionNotResolved *@
+@section scripts {
+    <script src="~/scripts/esrp-ui.js" asp-append-version="true"></script>
+}

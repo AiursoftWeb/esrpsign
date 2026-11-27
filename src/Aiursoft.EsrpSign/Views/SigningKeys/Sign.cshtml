@@ -1,32 +1,209 @@
+@using Aiursoft.EsrpSign.SDK.Models
+@using Aiursoft.EsrpSign.Services.Signing
 @model Aiursoft.EsrpSign.Models.SigningKeysViewModels.SignViewModel
 @{
     var key = Model.Key!;
+    var keyId = key.Id.ToString("D");
+    var formattedFingerprint = CompanySigningService.FormatFingerprint(key.Fingerprint);
+    var isFileMode = string.Equals(Model.Mode, "file", StringComparison.OrdinalIgnoreCase);
+    var verifyCmd = $"gpgv --keyring esrpsign-{keyId}.gpg artifact.sig artifact";
 }
 
-<h1 class="h3 mb-3">@Localizer["Sign Text"]</h1>
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">@key.Name</h2>
-        <code class="text-break">@key.Fingerprint</code>
+<div id="esrp-loc-data" hidden
+     data-copied="@Localizer["Copied"]"
+     data-show-passphrase="@Localizer["Show passphrase"]"
+     data-hide-passphrase="@Localizer["Hide passphrase"]"></div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a asp-action="Details" asp-route-id="@key.Id" class="btn btn-sm btn-outline-secondary">
+        <i class="align-middle me-1" data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        @Localizer["Back to Key Details"]
+    </a>
+    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">
+        @Localizer["All Signing Keys"]
+    </a>
+</div>
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">@Localizer["Sign with"] @key.Name</h1>
+        <p class="text-muted mb-0">
+            @Localizer["Generate a detached OpenPGP signature (.sig) for UTF-8 text or a binary artifact."]
+        </p>
     </div>
-    <div class="card-body">
-        <form asp-action="Sign" asp-route-id="@key.Id" method="post" autocomplete="off">
-            <div class="mb-3">
-                <label asp-for="Text" class="form-label">@Localizer["Text to Sign"]</label>
-                <textarea asp-for="Text" class="form-control font-monospace" rows="6" required
-                          aria-describedby="sign-text-help"></textarea>
-                <div id="sign-text-help" class="form-text">
-                    @Localizer["Up to 64 KiB of UTF-8 text. Line endings are saved as LF."]
-                </div>
-                <span asp-validation-for="Text" class="text-danger"></span>
-            </div>
-            <div class="mb-3">
-                <label asp-for="Passphrase" class="form-label">@Localizer["Key Passphrase"]</label>
-                <input asp-for="Passphrase" type="password" value="" autocomplete="off" class="form-control" required />
-                <span asp-validation-for="Passphrase" class="text-danger"></span>
-            </div>
-            <button type="submit" class="btn btn-primary">@Localizer["Sign and Download"]</button>
-            <a asp-action="Index" class="btn btn-link">@Localizer["Back to Keys"]</a>
-        </form>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="Details" asp-route-id="@key.Id" asp-fragment="verify-passphrase" class="btn btn-outline-success">
+            <i class="align-middle me-1" data-lucide="key-square" style="width:16px;height:16px;"></i>
+            @Localizer["Test Passphrase"]
+        </a>
+        <a asp-action="PublicKey" asp-route-id="@key.Id" class="btn btn-outline-primary">
+            <i class="align-middle me-1" data-lucide="download" style="width:16px;height:16px;"></i>
+            @Localizer["Download .gpg"]
+        </a>
     </div>
 </div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header pb-0 border-bottom-0">
+                <ul class="nav nav-tabs card-header-tabs" id="sign-mode-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(isFileMode ? string.Empty : "active")"
+                                id="sign-text-tab" data-bs-toggle="tab" data-bs-target="#sign-text-pane"
+                                type="button" role="tab" aria-controls="sign-text-pane"
+                                aria-selected="@(isFileMode ? "false" : "true")">
+                            <i class="align-middle me-1" data-lucide="file-text" style="width:16px;height:16px;"></i>
+                            @Localizer["Sign Text (up to 64 KiB)"]
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(isFileMode ? "active" : string.Empty)"
+                                id="sign-file-tab" data-bs-toggle="tab" data-bs-target="#sign-file-pane"
+                                type="button" role="tab" aria-controls="sign-file-pane"
+                                aria-selected="@(isFileMode ? "true" : "false")">
+                            <i class="align-middle me-1" data-lucide="upload" style="width:16px;height:16px;"></i>
+                            @Localizer["Sign File (up to 64 MiB)"]
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body border-top">
+                <div class="tab-content" id="sign-mode-content">
+                    <div class="tab-pane fade @(isFileMode ? string.Empty : "show active")"
+                         id="sign-text-pane" role="tabpanel" aria-labelledby="sign-text-tab" tabindex="0">
+                        <form asp-action="Sign" asp-route-id="@key.Id" method="post" autocomplete="off">
+                            <div class="mb-3">
+                                <label asp-for="Text" class="form-label fw-semibold">@Localizer["Text to Sign"]</label>
+                                <textarea asp-for="Text" class="form-control font-monospace" rows="7" required
+                                          aria-describedby="sign-text-help"
+                                          placeholder="@Localizer["Paste checksums, release notes, or manifest text..."]"></textarea>
+                                <div id="sign-text-help" class="form-text">
+                                    @Localizer["Up to 64 KiB of UTF-8 text. Line endings are normalized to LF before signing."]
+                                </div>
+                                <span asp-validation-for="Text" class="text-danger small"></span>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="sign-text-passphrase" class="form-label fw-semibold">@Localizer["Argon2 Key Passphrase"]</label>
+                                <div class="input-group">
+                                    <input id="sign-text-passphrase" name="Passphrase" type="password" value=""
+                                           autocomplete="off" minlength="12" maxlength="256" class="form-control"
+                                           placeholder="@Localizer["Enter key passphrase"]" required />
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-toggle-password="sign-text-passphrase"
+                                            aria-label="@Localizer["Show passphrase"]" aria-pressed="false">
+                                        <span data-icon-show><i class="align-middle" data-lucide="eye" style="width:16px;height:16px;"></i></span>
+                                        <span data-icon-hide class="d-none"><i class="align-middle" data-lucide="eye-off" style="width:16px;height:16px;"></i></span>
+                                    </button>
+                                </div>
+                                @if (!isFileMode)
+                                {
+                                    <span asp-validation-for="Passphrase" class="text-danger small"></span>
+                                }
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="align-middle me-1" data-lucide="file-signature" style="width:16px;height:16px;"></i>
+                                @Localizer["Sign Text & Download .sig"]
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade @(isFileMode ? "show active" : string.Empty)"
+                         id="sign-file-pane" role="tabpanel" aria-labelledby="sign-file-tab" tabindex="0">
+                        <form asp-action="SignFile" asp-route-id="@key.Id" method="post"
+                              enctype="multipart/form-data" autocomplete="off">
+                            <div class="mb-3">
+                                <label for="sign-file-input" class="form-label fw-semibold">@Localizer["File to Sign"]</label>
+                                <input id="sign-file-input" name="File" type="file" class="form-control"
+                                       data-file-size-output="sign-file-size"
+                                       data-max-bytes="@SignFileRequest.MaxFileBytes" required />
+                                <div class="form-text d-flex flex-wrap justify-content-between gap-2">
+                                    <span>@Localizer["Supports any binary or text file up to 64 MiB. Streamed directly to the OpenPGP signer."]</span>
+                                    <span id="sign-file-size" class="text-muted fw-semibold"></span>
+                                </div>
+                                @Html.ValidationMessage("File", new { @class = "text-danger small d-block" })
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="sign-file-passphrase" class="form-label fw-semibold">@Localizer["Argon2 Key Passphrase"]</label>
+                                <div class="input-group">
+                                    <input id="sign-file-passphrase" name="Passphrase" type="password" value=""
+                                           autocomplete="off" minlength="12" maxlength="256" class="form-control"
+                                           placeholder="@Localizer["Enter key passphrase"]" required />
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            data-toggle-password="sign-file-passphrase"
+                                            aria-label="@Localizer["Show passphrase"]" aria-pressed="false">
+                                        <span data-icon-show><i class="align-middle" data-lucide="eye" style="width:16px;height:16px;"></i></span>
+                                        <span data-icon-hide class="d-none"><i class="align-middle" data-lucide="eye-off" style="width:16px;height:16px;"></i></span>
+                                    </button>
+                                </div>
+                                @if (isFileMode)
+                                {
+                                    <span asp-validation-for="Passphrase" class="text-danger small"></span>
+                                }
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="align-middle me-1" data-lucide="file-signature" style="width:16px;height:16px;"></i>
+                                @Localizer["Sign File & Download .sig"]
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title mb-0">@Localizer["Selected Signing Key"]</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="small text-muted fw-semibold">@Localizer["Key ID"]</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@keyId" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@keyId</code>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="small text-muted fw-semibold">@Localizer["OpenPGP Fingerprint"]</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@key.Fingerprint" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@formattedFingerprint</code>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="small text-muted fw-semibold">@Localizer["Verify Locally"]</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                data-copy-value="@verifyCmd" data-restore-class="btn-outline-secondary">
+                            <span data-copy-label>@Localizer["Copy"]</span>
+                        </button>
+                    </div>
+                    <div class="p-2 rounded border bg-body-tertiary">
+                        <code class="small text-break">@verifyCmd</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ReSharper disable once Razor.SectionNotResolved *@
+@section scripts {
+    <script src="~/scripts/esrp-ui.js" asp-append-version="true"></script>
+}

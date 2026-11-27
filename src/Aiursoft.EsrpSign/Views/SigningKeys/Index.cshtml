@@ -1,66 +1,129 @@
-@using Aiursoft.EsrpSign.Authorization
+@using Aiursoft.EsrpSign.Services.Signing
 @using Aiursoft.WebTools
-@using Microsoft.AspNetCore.Authorization
-@inject IAuthorizationService Authorization
 @model Aiursoft.EsrpSign.Models.SigningKeysViewModels.IndexViewModel
-@{
-    var canCreate = User.Identity?.IsAuthenticated == true &&
-        (await Authorization.AuthorizeAsync(User, AppPermissionNames.CanCreateCompanySigningKeys)).Succeeded;
-    var canSign = User.Identity?.IsAuthenticated == true &&
-        (await Authorization.AuthorizeAsync(User, AppPermissionNames.CanSignWithCompanyKeys)).Succeeded;
-}
 
-<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+<div id="esrp-loc-data" hidden data-copied="@Localizer["Copied"]"></div>
+
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
     <div>
-        <h1 class="h3">@Localizer["Company Signing Keys"]</h1>
-        <p class="text-muted mb-0">@Localizer["Download a public key to verify an OpenPGP signature."]</p>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <h1 class="h3 mb-0">@Localizer["Company Signing Keys"]</h1>
+            <span class="badge bg-primary-subtle text-primary">@Model.Keys.Count</span>
+        </div>
+        <p class="text-muted mb-0">
+            @Localizer["Inspect key IDs and fingerprints, download OpenPGP public keys, verify passphrases, or sign release files."]
+        </p>
     </div>
-    @if (canCreate)
+    @if (Model.CanCreate)
     {
         <a asp-action="Create" class="btn btn-primary">
-            <i data-lucide="plus"></i> @Localizer["Create Signing Key"]
+            <i class="align-middle me-1" data-lucide="plus" style="width:16px;height:16px;"></i>
+            @Localizer["Create Signing Key"]
         </a>
     }
 </div>
-<div class="card">
-    @if (Model.Keys.Count == 0)
-    {
-        <div class="card-body text-muted">@Localizer["No company signing keys yet."]</div>
-    }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">@Localizer["Name"]</th>
-                        <th scope="col">@Localizer["Fingerprint"]</th>
-                        <th scope="col">@Localizer["Created"]</th>
-                        <th scope="col" class="text-end">@Localizer["Actions"]</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var key in Model.Keys)
-                    {
-                        <tr>
-                            <td class="fw-semibold">@key.Name</td>
-                            <td><code class="text-break">@key.Fingerprint</code></td>
-                            <td><label data-utc-time="@key.CreatedAt.ToHtmlDateTime()" class="mb-0"></label></td>
-                            <td class="text-end">
-                                <a asp-action="PublicKey" asp-route-id="@key.Id" class="btn btn-sm btn-outline-primary">
-                                    @Localizer["Download Public Key"]
+
+@if (Model.Keys.Count == 0)
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <div class="text-muted mb-3">
+                <i data-lucide="key-round" style="width:40px;height:40px;"></i>
+            </div>
+            <h2 class="h5">@Localizer["No company signing keys yet"]</h2>
+            <p class="text-muted mb-3">@Localizer["Create your first company OpenPGP key to start signing releases and publishing verifiable public keys."]</p>
+            @if (Model.CanCreate)
+            {
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="align-middle me-1" data-lucide="plus" style="width:16px;height:16px;"></i>
+                    @Localizer["Create Signing Key"]
+                </a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var key in Model.Keys)
+        {
+            var formattedFingerprint = CompanySigningService.FormatFingerprint(key.Fingerprint);
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                    <a asp-action="Details" asp-route-id="@key.Id" class="h4 mb-0 text-decoration-none">
+                                        @key.Name
+                                    </a>
+                                    <span class="badge bg-success-subtle text-success">
+                                        <i class="align-middle me-1" data-lucide="shield-check" style="width:13px;height:13px;"></i>
+                                        @Localizer["OpenPGP · Argon2id"]
+                                    </span>
+                                    <span class="text-muted small ms-1">
+                                        @Localizer["Created"] <label data-utc-time="@key.CreatedAt.ToHtmlDateTime()" class="mb-0"></label>
+                                    </span>
+                                </div>
+
+                                <div class="row g-2 mt-1">
+                                    <div class="col-lg-5">
+                                        <div class="p-2 rounded border bg-body-tertiary">
+                                            <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                                                <span class="small text-muted fw-semibold">@Localizer["Key ID (UUID)"]</span>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                                        data-copy-value="@key.Id.ToString("D")" data-restore-class="btn-outline-secondary">
+                                                    <span data-copy-label>@Localizer["Copy"]</span>
+                                                </button>
+                                            </div>
+                                            <code class="small text-break d-block">@key.Id.ToString("D")</code>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-7">
+                                        <div class="p-2 rounded border bg-body-tertiary">
+                                            <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                                                <span class="small text-muted fw-semibold">@Localizer["OpenPGP Fingerprint"]</span>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                                        data-copy-value="@key.Fingerprint" data-restore-class="btn-outline-secondary">
+                                                    <span data-copy-label>@Localizer["Copy"]</span>
+                                                </button>
+                                            </div>
+                                            <code class="small text-break d-block">@formattedFingerprint</code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <a asp-action="Details" asp-route-id="@key.Id" class="btn btn-sm btn-outline-secondary">
+                                    <i class="align-middle me-1" data-lucide="info" style="width:14px;height:14px;"></i>
+                                    @Localizer["Details"]
                                 </a>
-                                @if (canSign)
+                                <a asp-action="PublicKey" asp-route-id="@key.Id" class="btn btn-sm btn-outline-primary">
+                                    <i class="align-middle me-1" data-lucide="download" style="width:14px;height:14px;"></i>
+                                    @Localizer["Download .gpg"]
+                                </a>
+                                @if (Model.CanSign)
                                 {
+                                    <a asp-action="Details" asp-route-id="@key.Id" asp-fragment="verify-passphrase" class="btn btn-sm btn-outline-success">
+                                        <i class="align-middle me-1" data-lucide="key-square" style="width:14px;height:14px;"></i>
+                                        @Localizer["Test Passphrase"]
+                                    </a>
                                     <a asp-action="Sign" asp-route-id="@key.Id" class="btn btn-sm btn-primary">
-                                        @Localizer["Sign Text"]
+                                        <i class="align-middle me-1" data-lucide="file-signature" style="width:14px;height:14px;"></i>
+                                        @Localizer["Sign"]
                                     </a>
                                 }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ReSharper disable once Razor.SectionNotResolved *@
+@section scripts {
+    <script src="~/scripts/esrp-ui.js" asp-append-version="true"></script>
+}
